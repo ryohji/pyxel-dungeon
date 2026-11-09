@@ -9,6 +9,7 @@ Controls
                  a locked door to use a key, anything else to throw
   Space          swing at the enemy in front
   Tab            toggle map           F      toggle debug info
+  H              help (pauses the game; open at start)
 
 Arn (you) fights up front; Mira follows, casting bolts and healing on her own.
 """
@@ -20,6 +21,7 @@ import time
 import pyxel
 
 from dungeon import CELL
+from help import HINT, Help
 from ime import LatinInput
 from palette import BLACK, EARTH_I, FIRE_I, PALETTE, RED, STONE_I, WHITE
 from sound import Sfx
@@ -27,7 +29,7 @@ from textures import ICON, icon_uv, make_atlas, make_icons
 from world import REACH, World
 
 W, H = 320, 240
-TITLE = "Pyxel Dungeon (P3)"
+TITLE = "Pyxel Dungeon"
 
 COMPASS = ("N", "E", "S", "W")
 
@@ -48,6 +50,8 @@ class App:
         self.world = World(make_atlas(), W, H, Sfx())
         if sys.platform == "emscripten":  # in a browser the input method is out of our hands
             self.world.messages.add("Tip: turn off Japanese/IME input to play.")
+        self.help = Help()
+        self.help.open = True  # first thing a new player sees
         self.show_map = False
         self.show_debug = False
         self.cost_ms = 0.0
@@ -64,6 +68,12 @@ class App:
         t0 = time.perf_counter()
         if pyxel.frame_count % 30 == 0:
             self.latin.tick()
+        if pyxel.btnp(pyxel.KEY_H) or (self.help.open and pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT)):
+            self.help.open = not self.help.open
+            self.update_ms = 0.0
+            return
+        if self.help.open:
+            return  # paused while reading
         if pyxel.btnp(pyxel.KEY_TAB):
             self.show_map = not self.show_map
         if pyxel.btnp(pyxel.KEY_F):
@@ -103,7 +113,12 @@ class App:
             pyxel.text(4, 16, f"{w.floor.name} cell {gx},{gy} yaw {p.yaw:5.1f} pitch {p.pitch:5.1f}", WHITE)
             pyxel.text(4, 24, f"cells {w.floor.view.cells_drawn:3d}  cost {self.cost_ms:4.1f}ms  "
                               f"fps {1000 / self.frame_ms:4.1f}", WHITE)
-        self.draw_cursor()
+        pyxel.text(4, 4, HINT, STONE_I[4])
+        if self.help.open:
+            self.help.draw(W, H)
+            pyxel.mouse(True)
+        else:
+            self.draw_cursor()
 
     def draw_compass(self):
         """A heading strip like  W ── N ── E : the cardinal points that are in view."""

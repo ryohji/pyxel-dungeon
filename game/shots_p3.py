@@ -63,6 +63,7 @@ class ShotApp(main.App):
         return 160, 120, False
 
     def update(self):
+        self.help.open = False
         if self.wait is None:
             name, setup, frames = SCENES[self.scene]
             freeze(self.world)

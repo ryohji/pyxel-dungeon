@@ -57,6 +57,7 @@ class ShotApp(main.App):
         return sc[3][0], sc[3][1], False
 
     def update(self):
+        self.help.open = False
         if self.wait is None:
             name, setup, frames, _ = SCENES[self.scene]
             setup(self.world)
