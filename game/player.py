@@ -11,6 +11,9 @@ RADIUS = 22.0  # body radius
 EYE_H = 58.0
 WALK = 2.4  # units / frame  (1.44 m/s at 60 fps)
 RUN = 4.2
+STRIDE_WALK = 66.0  # units per footstep: an unhurried 2.2 steps / s
+STRIDE_RUN = 78.0  # running: long strides at about 3.3 steps / s
+GAIT_EASE = 0.08  # how fast walking and running blend into each other
 TURN_KEY = 3.0  # deg / frame
 MOUSE_SENS = 0.35  # deg / pixel while dragging
 PITCH_LIMIT = 40.0
@@ -25,7 +28,11 @@ class Player:
         self.z = (gy + 0.5) * CELL
         self.yaw = yaw
         self.pitch = 0.0
-        self.bob = 0.0
+        self.bob = 0.0  # one footstep per pi
+        self.bob_amp = 1.8
+        self.gait = 0.0  # 0 = walking, 1 = running, blended in between
+        self.dip = 0.0  # eye lowered after a hard landing
+        self.shake = (0.0, 0.0, 0.0)  # eye offset from screen shake
         self.drag_from = None
 
     # ------------------------------------------------------------ input
@@ -71,12 +78,18 @@ class Player:
             vx -= rx; vz -= rz
         length = math.hypot(vx, vz)
         if length > 0:
-            speed = RUN if pyxel.btn(pyxel.KEY_SHIFT) else WALK
+            target = 1.0 if pyxel.btn(pyxel.KEY_SHIFT) else 0.0
+            self.gait += (target - self.gait) * GAIT_EASE
+            g = self.gait
+            speed = WALK + (RUN - WALK) * g
             vx, vz = vx / length * speed, vz / length * speed
             ox, oz = self.x, self.z
             self.x, self.z = self._slide(self.x, self.z, vx, vz)
-            self.bob += math.hypot(self.x - ox, self.z - oz) * 0.09
+            stride = STRIDE_WALK + (STRIDE_RUN - STRIDE_WALK) * g
+            self.bob += math.hypot(self.x - ox, self.z - oz) * math.pi / stride
+            self.bob_amp = 1.8 + (3.4 - 1.8) * g
         else:
+            self.gait = 0.0
             # settle the head at the nearest rest point of the bob cycle
             rest = round(self.bob / math.pi) * math.pi
             self.bob += (rest - self.bob) * 0.2
@@ -114,7 +127,13 @@ class Player:
     # ------------------------------------------------------------ view
     @property
     def eye(self):
-        return Vec3(self.x, EYE_H + math.sin(self.bob * 2) * 1.6, self.z)
+        sx, sy, sz = self.shake
+        bob = -abs(math.sin(self.bob)) * self.bob_amp  # the head dips once per step
+        return Vec3(self.x + sx, EYE_H + bob - self.dip + sy, self.z + sz)
+
+    @property
+    def running(self):
+        return self.gait > 0.5
 
     @property
     def cell(self):

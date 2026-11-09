@@ -8,13 +8,15 @@ from pyxel.cube import Vec3
 
 from objects import cell_center
 from palette import PALETTE
+from sound import NullSfx
 from textures import make_atlas
 from world import World
 
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE
-world = World(make_atlas(), W, H)
+sfx = NullSfx()
+world = World(make_atlas(), W, H, sfx)
 fl1 = world.floor
 p = world.player
 
@@ -98,14 +100,14 @@ p.z -= 100
 tick(80)
 check(world.floor.name == "floor1", "climbed back up")
 
-# 7. a thrown rock bounces off a wall and lands
+# 7. a thrown rock bounces off the closed gate and lands
 place((2, 13), 225, pitch=-40)
 rock = next(it for it in fl1.items if it.kind == "rock")
 world.click(world.pick(*world.project(rock.center)))
 check(world.hand == "rock", "took the rock back")
 tick(40)
 check(fl1.solid(10, 12), "gate closed again without the rock")
-place((5, 12), 90, pitch=10)
+place((8, 12), 90, pitch=10)  # the closed gate is 1.5 m ahead
 world.click(world.pick(W // 2, H // 2 - 40))
 tick(200)
 thrown = next(it for it in fl1.items if it.kind == "rock")
@@ -117,5 +119,16 @@ p.z += 100
 for _ in range(80):
     tick()
 check(world.floor.name == "floor2" and p.cell == (17, 12), f"fell through the pit to {p.cell}")
+
+# 9. every event made its sound, and the fall shook the screen
+expected = {"lever", "door_open", "door_close", "pickup", "plate_down", "plate_up", "thud", "unlock",
+            "stairs_down", "stairs_up", "throw", "knock", "fall", "land"}
+missing = expected - set(sfx.played)
+check(not missing, f"sounds played (missing: {sorted(missing)})")
+place((17, 12), 0)
+world.travel = None
+world._start_travel("floor2", "test", "fall")
+tick(18)
+check(world.shake > 0.5 and p.dip > 20, f"landing shakes the view (shake {world.shake:.2f}, dip {p.dip:.1f})")
 
 print("all checks passed")

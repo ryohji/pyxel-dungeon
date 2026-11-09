@@ -58,6 +58,7 @@ class Floor:
             self.view.attach(StairsNode(c, d.char(*c) == "X"), c)
 
         rnd = random.Random(hash(name) & 0xFFFF)
+        self.events = []  # (sound name, (x, z), volume) raised during update
         self.items = []
         for cell, kind in d.items:
             x, z = cell_center(cell)
@@ -88,31 +89,43 @@ class Floor:
         resting = {it.cell for it in self.items if not it.moving}
         for plate in self.plates.values():
             pressed = plate.cell == player_cell or plate.cell in resting
-            if plate.set_pressed(pressed) and pressed:
-                messages.add("Click.")
+            if plate.set_pressed(pressed):
+                self.emit("plate_down" if pressed else "plate_up", cell_center(plate.cell))
+                if pressed:
+                    messages.add("Click.")
         for door in self.doors.values():
-            door.update(door.cell == player_cell or door.cell in resting)
+            sound = door.update(door.cell == player_cell or door.cell in resting)
+            if sound:
+                self.emit(sound, cell_center(door.cell))
         fallen = []
         for it in list(self.items):
             if it.moving and self._step_item(it):
                 fallen.append(it)
         return fallen
 
+    def emit(self, name, pos, volume=1.0):
+        self.events.append((name, pos, volume))
+
     def _step_item(self, it):
         """Advance a thrown item. Returns True when it drops to the floor below."""
         it.vy -= GRAVITY
         steps = max(1, int(math.ceil(max(abs(it.vx), abs(it.vz)) / 10)))
+        knock = 0.0
         for _ in range(steps):
             nx = it.x + it.vx / steps
             if self.solid(*cell_of(nx, it.z)):
+                knock = max(knock, abs(it.vx))
                 it.vx *= -0.4
             else:
                 it.x = nx
             nz = it.z + it.vz / steps
             if self.solid(*cell_of(it.x, nz)):
+                knock = max(knock, abs(it.vz))
                 it.vz *= -0.4
             else:
                 it.z = nz
+        if knock > 1.0:
+            self.emit("knock", (it.x, it.z), min(1.0, knock / 6))
         it.y += it.vy
         if it.y > WALL_H - 12:
             it.y, it.vy = WALL_H - 12, -abs(it.vy) * 0.5
@@ -121,6 +134,8 @@ class Floor:
             if it.y < -WALL_H * 0.6:
                 return True
         elif it.y <= 0:
+            if it.vy < -1.5:
+                self.emit("thud", (it.x, it.z), min(1.0, -it.vy / 7))
             it.y = 0.0
             it.vy = -it.vy * 0.3
             it.vx *= 0.6
@@ -150,7 +165,8 @@ class Messages:
 
 
 class World:
-    def __init__(self, atlas, w, h):
+    def __init__(self, atlas, w, h, sfx):
+        self.sfx = sfx
         self.atlas = atlas
         self.door_image = tile_image(atlas, "door")
         self.w, self.h = w, h
@@ -161,8 +177,11 @@ class World:
         self.messages = Messages()
         self.explored = {}  # floor name -> set of cells
         self.arrived_on = None  # stairs cell we arrived on; ignored until we step off
-        self.travel = None  # (frame, target floor, message)
+        self.travel = None  # [frame, target floor, message, how]
         self.hover = None
+        self.shake = 0.0  # screen shake strength, decays every frame
+        self.last_step = 0
+        self.rnd = random.Random()
 
     def get_floor(self, name):
         if name not in self.floors:
@@ -185,8 +204,36 @@ class World:
             below = self.get_floor(self.floor.d.below)
             it.y, it.vy = WALL_H * 0.9, 0.0
             below.add_item(it)
-        self.floor.view.update(p.eye, p.yaw, p.pitch, pyxel.frame_count)
+        for name, pos, volume in self.floor.events:
+            self.sfx.play(name, volume, math.hypot(pos[0] - p.x, pos[1] - p.z))
+        self.floor.events.clear()
+        self._footsteps()
+        self.sfx.ambience()
+        self._update_shake()
+        yaw, pitch = p.yaw, p.pitch
+        if self.shake > 0:
+            yaw += self.rnd.uniform(-1, 1) * self.shake * 1.5
+            pitch += self.rnd.uniform(-1, 1) * self.shake * 2.5
+        self.floor.view.update(p.eye, yaw, pitch, pyxel.frame_count)
         self.explored.setdefault(self.floor.name, set()).update(self.floor.view.shown)
+
+    def _footsteps(self):
+        step = int(self.player.bob / math.pi)
+        if step != self.last_step:
+            kind = "run" if self.player.running else "step"
+            self.sfx.play(f"{kind}{step % 2}", self.rnd.uniform(0.75, 1.0))
+            self.last_step = step
+
+    def _update_shake(self):
+        p = self.player
+        if self.shake > 0.02:
+            a = self.shake * 7
+            p.shake = (self.rnd.uniform(-a, a), self.rnd.uniform(-a, a) * 0.6, self.rnd.uniform(-a, a))
+            self.shake *= 0.9
+        else:
+            self.shake = 0.0
+            p.shake = (0.0, 0.0, 0.0)
+        p.dip *= 0.9
 
     def _check_cell_events(self):
         p = self.player
@@ -197,26 +244,31 @@ class World:
         cx, cz = cell_center(cell)
         near_center = math.hypot(p.x - cx, p.z - cz)
         if ch == "O" and near_center < 36:
-            self._start_travel(self.floor.d.below, "You fall through a pit!", stairs=False)
+            self._start_travel(self.floor.d.below, "You fall through a pit!", "fall")
         elif ch == "X" and near_center < 30 and cell != self.arrived_on:
-            self._start_travel(self.floor.d.below, "You go down the stairs.", stairs=True)
+            self._start_travel(self.floor.d.below, "You go down the stairs.", "stairs_down")
         elif ch == "U" and near_center < 30 and cell != self.arrived_on:
-            self._start_travel(self.floor.d.above, "You climb the stairs.", stairs=True)
+            self._start_travel(self.floor.d.above, "You climb the stairs.", "stairs_up")
 
-    def _start_travel(self, target, message, stairs):
+    def _start_travel(self, target, message, how):
         if target is None:
             return
-        self.travel = [0, target, message, stairs]
+        self.travel = [0, target, message, how]
+        self.sfx.play(how)
 
     def _update_travel(self):
         self.travel[0] += 1
-        frame, target, message, stairs = self.travel
+        frame, target, message, how = self.travel
         if frame == FALL_FRAMES:
             self.floor = self.get_floor(target)
             p = self.player
             p.solid = self.floor.solid
             cx, cz = cell_center(p.cell)
-            if stairs:
+            if how == "fall":
+                self.sfx.play("land")
+                self.shake = 1.0
+                p.dip = 30.0  # knocked to the ground, then getting up
+            else:
                 p.x, p.z = cx, cz
                 self.arrived_on = p.cell
             self.messages.add(message)
@@ -238,9 +290,11 @@ class World:
             if hit.kind == "item" and near:
                 self.floor.remove_item(hit.obj)
                 self.hand = hit.obj.kind
+                self.sfx.play("pickup")
                 self.messages.add(f"You take {hit.obj.name}.")
             elif hit.kind == "switch" and near:
                 hit.obj.toggle()
+                self.sfx.play("lever")
                 self.messages.add("You pull the lever.")
             elif hit.kind == "door" and near:
                 self._use_door(hit.obj)
@@ -250,6 +304,7 @@ class World:
                 hit.obj.lock = None
                 hit.obj.target_open = True
                 self.hand = None
+                self.sfx.play("unlock")
                 self.messages.add("The key turns. The door opens.")
             else:
                 self.messages.add("It doesn't fit.")
@@ -258,6 +313,8 @@ class World:
             item = Item(self.hand, p.x, p.z, yaw=random.uniform(0, 360))
             self.floor.add_item(item)
             item.moving = self.floor.d.char(*item.cell) in "OX"  # dropped into a hole: let it fall
+            if not item.moving:
+                self.sfx.play("thud", 0.35)
             self.messages.add(f"You put down {item.name}.")
             self.hand = None
         else:
@@ -280,6 +337,7 @@ class World:
         item.vx, item.vy, item.vz = d.x * THROW_SPEED, d.y * THROW_SPEED + 1.5, d.z * THROW_SPEED
         item.moving = True
         self.floor.add_item(item)
+        self.sfx.play("throw")
         self.messages.add(f"You throw {item.name}.")
         self.hand = None
 

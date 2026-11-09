@@ -17,10 +17,13 @@ import pyxel
 
 from dungeon import CELL
 from palette import BLACK, FIRE_I, PALETTE, STONE_I, WHITE
+from sound import Sfx
 from textures import ICON, icon_uv, make_atlas, make_icons
 from world import REACH, World
 
 W, H = 320, 240
+
+COMPASS = ("N", "E", "S", "W")
 
 HINTS = {
     "item": "take",
@@ -34,7 +37,7 @@ class App:
         pyxel.init(W, H, title="Pyxel Dungeon (P2)", fps=60)
         pyxel.colors[:] = PALETTE
         self.icons = make_icons()
-        self.world = World(make_atlas(), W, H)
+        self.world = World(make_atlas(), W, H, Sfx())
         self.show_map = False
         self.show_debug = False
         self.cost_ms = 0.0
@@ -77,10 +80,25 @@ class App:
         self.draw_cursor()
 
     def draw_compass(self):
-        cx = W // 2
-        pyxel.rect(cx - 9, 2, 19, 9, BLACK)
-        pyxel.rectb(cx - 9, 2, 19, 9, STONE_I[3])
-        pyxel.text(cx - 1, 4, self.world.player.facing, FIRE_I[5])
+        """A heading strip like  W ── N ── E : the cardinal points that are in view."""
+        half_w, span = 31, 100.0  # pixels each side, degrees each side
+        scale = half_w / span
+        cx, y = W // 2, 2
+        yaw = self.world.player.yaw
+        pyxel.rect(cx - half_w - 4, y, half_w * 2 + 9, 11, BLACK)
+        pyxel.rectb(cx - half_w - 4, y, half_w * 2 + 9, 11, STONE_I[3])
+        pyxel.line(cx - half_w, y + 5, cx + half_w, y + 5, STONE_I[2])
+        for deg in range(0, 360, 30):
+            off = (deg - yaw + 180) % 360 - 180
+            if abs(off) > span:
+                continue
+            x = round(cx + off * scale)
+            if deg % 90:
+                pyxel.pset(x, y + 5, STONE_I[4])  # small tick every 30 degrees
+                continue
+            pyxel.rect(x - 2, y + 2, 5, 7, BLACK)
+            pyxel.text(x - 1, y + 3, COMPASS[deg // 90], FIRE_I[5])
+        pyxel.tri(cx - 2, y + 14, cx + 2, y + 14, cx, y + 12, FIRE_I[4])  # heading marker
 
     def draw_messages(self):
         lines = self.world.messages.visible()

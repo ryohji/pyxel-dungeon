@@ -37,6 +37,7 @@ class Door:
         self.controlled = False  # driven by a switch or plate only
         self.open = 0.0
         self.target_open = False
+        self.motion = 0  # +1 opening, -1 closing, 0 still
         self.node = DoorNode(self, image)
 
     @property
@@ -48,11 +49,19 @@ class Door:
         return self.open < 0.05
 
     def update(self, occupied):
+        """Move the panel; return 'door_open' / 'door_close' when it starts moving."""
+        before = self.open
         if self.target_open:
             self.open = min(1.0, self.open + DOOR_SPEED)
         elif not occupied:  # a door never closes on someone
             self.open = max(0.0, self.open - DOOR_SPEED)
+        motion = (self.open > before) - (self.open < before)
+        started = motion != 0 and motion != self.motion
+        self.motion = motion
         self.node.refresh()
+        if started:
+            return "door_open" if motion > 0 else "door_close"
+        return None
 
 
 class DoorNode(Node):
