@@ -19,12 +19,14 @@ import time
 import pyxel
 
 from dungeon import CELL
+from ime import LatinInput
 from palette import BLACK, EARTH_I, FIRE_I, PALETTE, RED, STONE_I, WHITE
 from sound import Sfx
 from textures import ICON, icon_uv, make_atlas, make_icons
 from world import REACH, World
 
 W, H = 320, 240
+TITLE = "Pyxel Dungeon (P3)"
 
 COMPASS = ("N", "E", "S", "W")
 
@@ -38,7 +40,8 @@ HINTS = {
 
 class App:
     def __init__(self):
-        pyxel.init(W, H, title="Pyxel Dungeon (P3)", fps=60)
+        pyxel.init(W, H, title=TITLE, fps=60)
+        self.latin = LatinInput(TITLE)  # a composing input method would swallow held keys
         pyxel.colors[:] = PALETTE
         self.icons = make_icons()
         self.world = World(make_atlas(), W, H, Sfx())
@@ -56,6 +59,8 @@ class App:
 
     def update(self):
         t0 = time.perf_counter()
+        if pyxel.frame_count % 30 == 0:
+            self.latin.tick()
         if pyxel.btnp(pyxel.KEY_TAB):
             self.show_map = not self.show_map
         if pyxel.btnp(pyxel.KEY_F):
