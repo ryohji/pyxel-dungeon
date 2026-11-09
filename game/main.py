@@ -14,6 +14,7 @@ Arn (you) fights up front; Mira follows, casting bolts and healing on her own.
 """
 
 import math
+import sys
 import time
 
 import pyxel
@@ -45,6 +46,8 @@ class App:
         pyxel.colors[:] = PALETTE
         self.icons = make_icons()
         self.world = World(make_atlas(), W, H, Sfx())
+        if sys.platform == "emscripten":  # in a browser the input method is out of our hands
+            self.world.messages.add("Tip: turn off Japanese/IME input to play.")
         self.show_map = False
         self.show_debug = False
         self.cost_ms = 0.0
