@@ -27,7 +27,7 @@ NOTES = [
     "entered the floor.",
     "Turn off Japanese / IME input to play.",
 ]
-FOOTER = "H or click to close"
+FOOTER = "H, Esc or click to close"
 HINT = "H: help"
 
 

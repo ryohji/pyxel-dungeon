@@ -9,7 +9,7 @@ Controls
                  a locked door to use a key, anything else to throw
   Space          swing at the enemy in front
   Tab            toggle map           F      toggle debug info
-  H              help (pauses the game; open at start)
+  H              help (pauses the game; open at start; Esc also closes it)
 
 Arn (you) fights up front; Mira follows, casting bolts and healing on her own.
 """
@@ -43,7 +43,8 @@ HINTS = {
 
 class App:
     def __init__(self):
-        pyxel.init(W, H, title=TITLE, fps=60)
+        # no quit key: Esc closes the help screen instead (quit by closing the window)
+        pyxel.init(W, H, title=TITLE, fps=60, quit_key=pyxel.KEY_NONE)
         self.latin = LatinInput(TITLE)  # a composing input method would swallow held keys
         pyxel.colors[:] = PALETTE
         self.icons = make_icons()
@@ -68,12 +69,15 @@ class App:
         t0 = time.perf_counter()
         if pyxel.frame_count % 30 == 0:
             self.latin.tick()
-        if pyxel.btnp(pyxel.KEY_H) or (self.help.open and pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT)):
+        closing = pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT) or pyxel.btnp(pyxel.KEY_ESCAPE)
+        if pyxel.btnp(pyxel.KEY_H) or (self.help.open and closing):
             self.help.open = not self.help.open
             self.update_ms = 0.0
             return
         if self.help.open:
             return  # paused while reading
+        if pyxel.btnp(pyxel.KEY_ESCAPE):
+            self.show_map = False
         if pyxel.btnp(pyxel.KEY_TAB):
             self.show_map = not self.show_map
         if pyxel.btnp(pyxel.KEY_F):

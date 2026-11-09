@@ -21,7 +21,8 @@ Work in progress. So far there are two floors, a small puzzle (a lever, a pressu
 | Space | swing at the enemy in front |
 | Tab | map |
 | F | debug info (game cost and frame rate) |
-| H | help (pauses the game) |
+| H | help (pauses the game; Esc or a click also closes it) |
+| close the window | quit (Esc does not quit) |
 
 You play Arn, the fighter. Mira, your companion, casts bolts at enemies in view and heals on her own. If the party falls, you start again where you entered the floor.
 
