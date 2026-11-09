@@ -1,0 +1,375 @@
+"""Floors, the player's hand, picking, and floor-to-floor travel."""
+
+import math
+import os
+import random
+
+import pyxel
+from pyxel.cube import Vec3
+
+from dungeon import CELL, WALL_H, Dungeon
+from objects import (ITEM_RADIUS, Door, Item, Plate, StairsNode, Switch, cell_center, cell_of,
+                     open_sides)
+from player import Player
+from textures import tile_image
+from view import DungeonView
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+REACH = 175.0  # how far the hand reaches from the eye
+GRAVITY = 0.35  # units / frame^2 for thrown items
+THROW_SPEED = 7.5
+FALL_FRAMES = 18  # fade out and in when changing floors
+
+
+class Hit:
+    def __init__(self, kind, t, point=None, obj=None, cell=None):
+        self.kind = kind  # item, switch, door, floor, wall, none
+        self.t = t
+        self.point = point
+        self.obj = obj
+        self.cell = cell
+
+
+class Floor:
+    def __init__(self, name, atlas, door_image):
+        self.name = name
+        self.d = Dungeon.load(os.path.join(HERE, "maps", f"{name}.txt"), name)
+        d = self.d
+        self.doors = {c: Door(c, d.door_axis(*c), d.locks.get(c), door_image) for c in d.cells_of("D")}
+        self.switches = {c: Switch(c, open_sides(d, c)) for c in d.cells_of("S")}
+        self.plates = {c: Plate(c) for c in d.cells_of("_")}
+        for src, tgt, mode in d.links:
+            source = self.switches.get(src) or self.plates.get(src)
+            door = self.doors.get(tgt)
+            if source is None or door is None:
+                raise ValueError(f"{name}: bad link {src} -> {tgt}")
+            source.targets.append((door, mode))
+            door.controlled = True
+
+        self.view = DungeonView(d, atlas, blocks_sight=self.blocks_sight)
+        for door in self.doors.values():
+            self.view.attach(door.node, door.cell)
+        for sw in self.switches.values():
+            for node, cell in sw.nodes:
+                self.view.attach(node, cell)
+        for plate in self.plates.values():
+            self.view.attach(plate.node, plate.cell)
+        for c in d.cells_of("XU"):
+            self.view.attach(StairsNode(c, d.char(*c) == "X"), c)
+
+        rnd = random.Random(hash(name) & 0xFFFF)
+        self.items = []
+        for cell, kind in d.items:
+            x, z = cell_center(cell)
+            self.add_item(Item(kind, x + rnd.uniform(-20, 20), z + rnd.uniform(-20, 20), yaw=rnd.uniform(0, 360)))
+
+    # ------------------------------------------------------------ queries
+    def solid(self, gx, gy):
+        if self.d.is_wall(gx, gy):
+            return True
+        door = self.doors.get((gx, gy))
+        return door is not None and door.blocks_move
+
+    def blocks_sight(self, gx, gy):
+        door = self.doors.get((gx, gy))
+        return door is not None and door.blocks_sight
+
+    def add_item(self, item):
+        self.items.append(item)
+        item.node.refresh()
+        self.view.attach(item.node, item.cell)
+
+    def remove_item(self, item):
+        self.items.remove(item)
+        self.view.detach(item.node)
+
+    # ------------------------------------------------------------ update
+    def update(self, player_cell, messages):
+        resting = {it.cell for it in self.items if not it.moving}
+        for plate in self.plates.values():
+            pressed = plate.cell == player_cell or plate.cell in resting
+            if plate.set_pressed(pressed) and pressed:
+                messages.add("Click.")
+        for door in self.doors.values():
+            door.update(door.cell == player_cell or door.cell in resting)
+        fallen = []
+        for it in list(self.items):
+            if it.moving and self._step_item(it):
+                fallen.append(it)
+        return fallen
+
+    def _step_item(self, it):
+        """Advance a thrown item. Returns True when it drops to the floor below."""
+        it.vy -= GRAVITY
+        steps = max(1, int(math.ceil(max(abs(it.vx), abs(it.vz)) / 10)))
+        for _ in range(steps):
+            nx = it.x + it.vx / steps
+            if self.solid(*cell_of(nx, it.z)):
+                it.vx *= -0.4
+            else:
+                it.x = nx
+            nz = it.z + it.vz / steps
+            if self.solid(*cell_of(it.x, nz)):
+                it.vz *= -0.4
+            else:
+                it.z = nz
+        it.y += it.vy
+        if it.y > WALL_H - 12:
+            it.y, it.vy = WALL_H - 12, -abs(it.vy) * 0.5
+        hole = self.d.char(*it.cell) in "OX"
+        if hole:
+            if it.y < -WALL_H * 0.6:
+                return True
+        elif it.y <= 0:
+            it.y = 0.0
+            it.vy = -it.vy * 0.3
+            it.vx *= 0.6
+            it.vz *= 0.6
+            it.yaw += it.vx * 3
+            if abs(it.vy) < 1.0 and math.hypot(it.vx, it.vz) < 0.5:
+                it.vx = it.vy = it.vz = 0.0
+                it.moving = False
+        it.node.refresh()
+        self.view.move(it.node, it.cell)
+        return False
+
+
+class Messages:
+    LIFETIME = 240
+
+    def __init__(self):
+        self.lines = []
+
+    def add(self, text):
+        self.lines.append((text, pyxel.frame_count))
+        self.lines = self.lines[-3:]
+
+    def visible(self):
+        now = pyxel.frame_count
+        return [(t, now - f) for t, f in self.lines if now - f < self.LIFETIME]
+
+
+class World:
+    def __init__(self, atlas, w, h):
+        self.atlas = atlas
+        self.door_image = tile_image(atlas, "door")
+        self.w, self.h = w, h
+        self.floors = {}
+        self.floor = self.get_floor("floor1")
+        self.player = Player(self.floor.d.start, self.floor.solid)
+        self.hand = None  # kind of the item held, or None
+        self.messages = Messages()
+        self.explored = {}  # floor name -> set of cells
+        self.arrived_on = None  # stairs cell we arrived on; ignored until we step off
+        self.travel = None  # (frame, target floor, message)
+        self.hover = None
+
+    def get_floor(self, name):
+        if name not in self.floors:
+            self.floors[name] = Floor(name, self.atlas, self.door_image)
+        return self.floors[name]
+
+    # ------------------------------------------------------------ frame
+    def update(self, mx, my, clicked):
+        if self.travel is not None:
+            self._update_travel()
+        else:
+            self.player.update()
+            self._check_cell_events()
+            self.hover = self.pick(mx, my)
+            if clicked:
+                self.click(self.hover)
+        p = self.player
+        for it in self.floor.update(p.cell, self.messages):
+            self.floor.remove_item(it)
+            below = self.get_floor(self.floor.d.below)
+            it.y, it.vy = WALL_H * 0.9, 0.0
+            below.add_item(it)
+        self.floor.view.update(p.eye, p.yaw, p.pitch, pyxel.frame_count)
+        self.explored.setdefault(self.floor.name, set()).update(self.floor.view.shown)
+
+    def _check_cell_events(self):
+        p = self.player
+        cell = p.cell
+        if self.arrived_on is not None and cell != self.arrived_on:
+            self.arrived_on = None
+        ch = self.floor.d.char(*cell)
+        cx, cz = cell_center(cell)
+        near_center = math.hypot(p.x - cx, p.z - cz)
+        if ch == "O" and near_center < 36:
+            self._start_travel(self.floor.d.below, "You fall through a pit!", stairs=False)
+        elif ch == "X" and near_center < 30 and cell != self.arrived_on:
+            self._start_travel(self.floor.d.below, "You go down the stairs.", stairs=True)
+        elif ch == "U" and near_center < 30 and cell != self.arrived_on:
+            self._start_travel(self.floor.d.above, "You climb the stairs.", stairs=True)
+
+    def _start_travel(self, target, message, stairs):
+        if target is None:
+            return
+        self.travel = [0, target, message, stairs]
+
+    def _update_travel(self):
+        self.travel[0] += 1
+        frame, target, message, stairs = self.travel
+        if frame == FALL_FRAMES:
+            self.floor = self.get_floor(target)
+            p = self.player
+            p.solid = self.floor.solid
+            cx, cz = cell_center(p.cell)
+            if stairs:
+                p.x, p.z = cx, cz
+                self.arrived_on = p.cell
+            self.messages.add(message)
+        elif frame >= FALL_FRAMES * 2:
+            self.travel = None
+
+    @property
+    def fade(self):
+        """0 = clear, 1 = black."""
+        if self.travel is None:
+            return 0.0
+        f = self.travel[0]
+        return f / FALL_FRAMES if f <= FALL_FRAMES else 2 - f / FALL_FRAMES
+
+    # ------------------------------------------------------------ hand
+    def click(self, hit):
+        near = hit.t <= REACH
+        if self.hand is None:
+            if hit.kind == "item" and near:
+                self.floor.remove_item(hit.obj)
+                self.hand = hit.obj.kind
+                self.messages.add(f"You take {hit.obj.name}.")
+            elif hit.kind == "switch" and near:
+                hit.obj.toggle()
+                self.messages.add("You pull the lever.")
+            elif hit.kind == "door" and near:
+                self._use_door(hit.obj)
+            return
+        if hit.kind == "door" and near and hit.obj.lock is not None:
+            if hit.obj.lock == self.hand:
+                hit.obj.lock = None
+                hit.obj.target_open = True
+                self.hand = None
+                self.messages.add("The key turns. The door opens.")
+            else:
+                self.messages.add("It doesn't fit.")
+        elif hit.kind == "floor" and near:
+            p = hit.point
+            item = Item(self.hand, p.x, p.z, yaw=random.uniform(0, 360))
+            self.floor.add_item(item)
+            item.moving = self.floor.d.char(*item.cell) in "OX"  # dropped into a hole: let it fall
+            self.messages.add(f"You put down {item.name}.")
+            self.hand = None
+        else:
+            self._throw(hit)
+
+    def _use_door(self, door):
+        if door.lock is not None:
+            self.messages.add("It is locked.")
+        elif door.controlled:
+            self.messages.add("It won't budge.")
+        else:
+            door.target_open = not door.target_open
+
+    def _throw(self, hit):
+        o, d = hit.ray
+        start = o + d * 18
+        if self.floor.solid(*cell_of(start.x, start.z)):
+            start = o
+        item = Item(self.hand, start.x, start.z, y=start.y - 7, yaw=self.player.yaw)
+        item.vx, item.vy, item.vz = d.x * THROW_SPEED, d.y * THROW_SPEED + 1.5, d.z * THROW_SPEED
+        item.moving = True
+        self.floor.add_item(item)
+        self.messages.add(f"You throw {item.name}.")
+        self.hand = None
+
+    # ------------------------------------------------------------ picking
+    def screen_ray(self, mx, my):
+        """Eye position and unit direction through screen pixel (mx, my)."""
+        p = self.player
+        cam = self.floor.view.camera
+        yr, pr = math.radians(p.yaw), math.radians(p.pitch)
+        fwd = Vec3(math.sin(yr) * math.cos(pr), math.sin(pr), -math.cos(yr) * math.cos(pr))
+        right = fwd.cross(Vec3.UP).normalize()
+        up = right.cross(fwd)
+        k = math.tan(math.radians(cam.fov) / 2)
+        nx = (2 * (mx + 0.5) / self.w - 1) * k * self.w / self.h
+        ny = (1 - 2 * (my + 0.5) / self.h) * k
+        return p.eye, (fwd + right * nx + up * ny).normalize()
+
+    def project(self, pt):
+        """Screen pixel of a world point (inverse of screen_ray), or None if behind."""
+        p = self.player
+        cam = self.floor.view.camera
+        yr, pr = math.radians(p.yaw), math.radians(p.pitch)
+        fwd = Vec3(math.sin(yr) * math.cos(pr), math.sin(pr), -math.cos(yr) * math.cos(pr))
+        right = fwd.cross(Vec3.UP).normalize()
+        up = right.cross(fwd)
+        v = pt - p.eye
+        z = v.dot(fwd)
+        if z <= 0:
+            return None
+        k = math.tan(math.radians(cam.fov) / 2)
+        nx = v.dot(right) / z / (k * self.w / self.h)
+        ny = v.dot(up) / z / k
+        return (nx + 1) * self.w / 2 - 0.5, (1 - ny) * self.h / 2 - 0.5
+
+    def pick(self, mx, my):
+        o, d = self.screen_ray(mx, my)
+        hit = self._pick_grid(o, d, 8 * CELL)
+        for it in self.floor.items:
+            if it.moving:
+                continue
+            c = it.center
+            oc = o - c
+            b = oc.dot(d)
+            disc = b * b - (oc.dot(oc) - ITEM_RADIUS * ITEM_RADIUS)
+            if disc < 0:
+                continue
+            t = -b - math.sqrt(disc)
+            if 0 < t < hit.t:
+                hit = Hit("item", t, o + d * t, it, it.cell)
+        hit.ray = (o, d)
+        return hit
+
+    def _pick_grid(self, o, d, max_t):
+        fl = self.floor
+        gx, gz = cell_of(o.x, o.z)
+        inf = float("inf")
+        sx = 1 if d.x > 0 else -1
+        sz = 1 if d.z > 0 else -1
+        tx = ((gx + (sx > 0)) * CELL - o.x) / d.x if d.x else inf
+        tz = ((gz + (sz > 0)) * CELL - o.z) / d.z if d.z else inf
+        dtx = CELL / abs(d.x) if d.x else inf
+        dtz = CELL / abs(d.z) if d.z else inf
+        t0 = 0.0
+        while t0 < max_t:
+            t1 = min(tx, tz)
+            door = fl.doors.get((gx, gz))
+            if door is not None and door.open < 0.97:
+                cx, cz = cell_center((gx, gz))
+                t = ((cz - o.z) / d.z if d.z else inf) if door.axis == "x" else ((cx - o.x) / d.x if d.x else inf)
+                if t0 <= t <= t1 and door.open * WALL_H <= o.y + d.y * t <= WALL_H:
+                    return Hit("door", t, o + d * t, door, (gx, gz))
+            ch = fl.d.char(gx, gz)
+            if d.y < 0:
+                t = -o.y / d.y
+                if t0 <= t <= t1:
+                    return Hit("floor", t, o + d * t, None, (gx, gz))
+            if d.y > 0 and ch != "U":
+                t = (WALL_H - o.y) / d.y
+                if t0 <= t <= t1:
+                    return Hit("wall", t, o + d * t, None, (gx, gz))
+            if tx < tz:
+                gx += sx
+                t0, tx = tx, tx + dtx
+            else:
+                gz += sz
+                t0, tz = tz, tz + dtz
+            if fl.d.is_wall(gx, gz):
+                sw = fl.switches.get((gx, gz))
+                y = o.y + d.y * t0
+                if sw is not None and 25 <= y <= 85:
+                    return Hit("switch", t0, o + d * t0, sw, (gx, gz))
+                return Hit("wall", t0, o + d * t0, None, (gx, gz))
+        return Hit("none", max_t)

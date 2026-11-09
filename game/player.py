@@ -17,9 +17,10 @@ PITCH_LIMIT = 40.0
 
 
 class Player:
-    def __init__(self, dungeon):
-        gx, gy, yaw = dungeon.start
-        self.dungeon = dungeon
+    def __init__(self, start, solid):
+        """start = (gx, gy, yaw); solid(gx, gy) tells whether a cell blocks movement."""
+        gx, gy, yaw = start
+        self.solid = solid
         self.x = (gx + 0.5) * CELL
         self.z = (gy + 0.5) * CELL
         self.yaw = yaw
@@ -91,11 +92,10 @@ class Player:
 
     def _resolve(self, x, z):
         """Push a circle out of the wall cells it overlaps."""
-        d = self.dungeon
         for _ in range(2):
             for gx in range(int((x - RADIUS) // CELL), int((x + RADIUS) // CELL) + 1):
                 for gy in range(int((z - RADIUS) // CELL), int((z + RADIUS) // CELL) + 1):
-                    if not d.is_wall(gx, gy):
+                    if not self.solid(gx, gy):
                         continue
                     cx = min(max(x, gx * CELL), (gx + 1) * CELL)
                     cz = min(max(z, gy * CELL), (gy + 1) * CELL)

@@ -43,8 +43,11 @@ class CellNode(Node):
 
 
 class DungeonView:
-    def __init__(self, dungeon, atlas, radius=7.0, fov=70.0):
+    def __init__(self, dungeon, atlas, radius=7.0, fov=70.0, blocks_sight=None):
         self.dungeon = dungeon
+        self.blocks_sight = blocks_sight or (lambda gx, gy: False)
+        self.extras = {}  # cell -> set of nodes lit and culled with that cell
+        self.node_cell = {}
         self.radius = radius
         self.root = Node()
         self.camera = Camera()
@@ -89,8 +92,13 @@ class DungeonView:
             band = flicker_band(dist / BAND, self.flicker)
             node.shading = self.shadings[max(0, min(last_band, band))]
             node.visible = True
+            for extra in self.extras.get(key, ()):
+                extra.shading = node.shading
+                extra.visible = True
         for key in self.shown - visible.keys():
             self.nodes[key].visible = False
+            for extra in self.extras.get(key, ()):
+                extra.visible = False
         self.shown = set(visible)
         self.root.update()
 
@@ -111,6 +119,8 @@ class DungeonView:
             dist = math.hypot(dx, dz)
             if dist <= CELL * 1.5 or dx * fx + dz * fz >= dist * 0.45:
                 out[(gx, gy)] = dist
+            if (gx, gy) != start and self.blocks_sight(gx, gy):
+                continue  # e.g. a closed door: draw it, but nothing behind
             for nx, ny in ((gx + 1, gy), (gx - 1, gy), (gx, gy + 1), (gx, gy - 1)):
                 if (nx, ny) in seen or d.is_wall(nx, ny):
                     continue
@@ -119,6 +129,32 @@ class DungeonView:
                 seen.add((nx, ny))
                 q.append((nx, ny))
         return out
+
+    # ------------------------------------------------------------ extras
+    def attach(self, node, cell):
+        """Add a node that is shown and lit together with an open cell."""
+        if node.parent is None:
+            self.root.add_child(node)
+        self.move(node, cell)
+
+    def move(self, node, cell):
+        old = self.node_cell.get(node)
+        if old == cell:
+            return
+        if old is not None:
+            self.extras[old].discard(node)
+        self.extras.setdefault(cell, set()).add(node)
+        self.node_cell[node] = cell
+        node.visible = cell in self.shown
+        if node.visible:
+            node.shading = self.nodes[cell].shading
+
+    def detach(self, node):
+        old = self.node_cell.pop(node, None)
+        if old is not None:
+            self.extras[old].discard(node)
+        if node.parent is not None:
+            self.root.remove_child(node)
 
     def draw(self, x, y, w, h):
         self.root.draw(x, y, w, h)
