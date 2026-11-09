@@ -5,7 +5,8 @@ import math
 from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL, SIDES, WALL_H
-from palette import FIRE_I, STONE_I
+from palette import BLUE_I, EARTH_I, FIRE_I, STONE_I
+from things import Thing
 
 DOOR_SPEED = 1 / 30  # fraction per frame
 ITEM_RADIUS = 14.0  # pick radius around an item's center
@@ -184,19 +185,47 @@ class StairsNode(Node):
                 self.box(Mat4.from_translation(Vec3(0, h / 2, -zc)), Vec3(CELL, h, depth), STONE_I[4])
 
 
+# ---------------------------------------------------------------- fountains
+class Fountain:
+    """A basin in a wall: drink from it, or refill a waterskin."""
+
+    def __init__(self, cell, open_sides):
+        self.cell = cell
+        self.nodes = []
+        x, z = cell_center(cell)
+        for dx, dy in open_sides:
+            node = FountainNode()
+            face = Vec3(x + dx * CELL / 2, 0, z + dy * CELL / 2)
+            node.transform = Mat4.from_translation(face) * yaw_matrix(facing_yaw(dx, dy))
+            self.nodes.append((node, (cell[0] + dx, cell[1] + dy)))
+
+
+class FountainNode(Node):
+    def on_draw(self):
+        self.box(Mat4.from_translation(Vec3(0, 20, 9)), Vec3(46, 6, 18), STONE_I[4])  # basin rim
+        self.box(Mat4.from_translation(Vec3(0, 9, 7)), Vec3(30, 18, 12), STONE_I[3])  # pedestal
+        self.box(Mat4.from_translation(Vec3(0, 23.5, 9)), Vec3(38, 1, 13), BLUE_I[1])  # water
+        self.box(Mat4.from_translation(Vec3(0, 55, 2)), Vec3(14, 14, 4), STONE_I[2])  # spout face
+        self.box(Mat4.from_translation(Vec3(0, 50, 6)), Vec3(4, 4, 8), STONE_I[5])
+        self.box(Mat4.from_translation(Vec3(0, 36, 9)), Vec3(2, 24, 2), BLUE_I[2])  # trickle
+
+
 # ---------------------------------------------------------------- items
-ITEM_NAMES = {"rock": "a rock", "key_iron": "an iron key"}
-
-
 class Item:
-    def __init__(self, kind, x, z, y=0.0, yaw=0.0):
-        self.kind = kind
+    """A thing lying on (or flying over) the floor."""
+
+    def __init__(self, thing, x, z, y=0.0, yaw=0.0):
+        self.thing = thing if isinstance(thing, Thing) else Thing(thing)
         self.x, self.y, self.z = x, y, z
         self.vx = self.vy = self.vz = 0.0
         self.yaw = yaw
         self.moving = False
         self.node = ItemNode(self)
         self.node.refresh()
+
+    @property
+    def kind(self):
+        return self.thing.kind
 
     @property
     def cell(self):
@@ -208,7 +237,12 @@ class Item:
 
     @property
     def name(self):
-        return ITEM_NAMES.get(self.kind, self.kind)
+        return self.thing.name
+
+
+def _at(x, y, z, deg=0.0):
+    m = Mat4.from_translation(Vec3(x, y, z))
+    return m * yaw_matrix(deg) if deg else m
 
 
 class ItemNode(Node):
@@ -221,20 +255,50 @@ class ItemNode(Node):
         self.transform = Mat4.from_translation(Vec3(it.x, it.y, it.z)) * yaw_matrix(it.yaw)
 
     def on_draw(self):
-        kind = self.item.kind
+        thing = self.item.thing
+        kind = thing.kind
+        b = self.box
         if kind == "rock":
-            self.box(Mat4.from_translation(Vec3(0, 5, 0)), Vec3(16, 10, 13), STONE_I[5])
-            self.box(Mat4.from_translation(Vec3(1, 10, -1)) * Mat4.from_euler(Vec3(0, 30, 0)),
-                     Vec3(10, 5, 9), STONE_I[6])
+            b(_at(0, 5, 0), Vec3(16, 10, 13), STONE_I[5])
+            b(_at(1, 10, -1, 30), Vec3(10, 5, 9), STONE_I[6])
         elif kind == "key_iron":
             c = STONE_I[6]
-            self.box(Mat4.from_translation(Vec3(4, 1.5, 0)), Vec3(22, 3, 3), c)
+            b(_at(4, 1.5, 0), Vec3(22, 3, 3), c)
             for dx, dz, sx, sz in ((-12, 0, 3, 11), (-4, 0, 3, 11), (-8, -4, 9, 3), (-8, 4, 9, 3)):
-                self.box(Mat4.from_translation(Vec3(dx, 1.5, dz)), Vec3(sx, 3, sz), c)
+                b(_at(dx, 1.5, dz), Vec3(sx, 3, sz), c)
             for dx in (11, 7):
-                self.box(Mat4.from_translation(Vec3(dx, 1.5, 3)), Vec3(2, 3, 5), c)
+                b(_at(dx, 1.5, 3), Vec3(2, 3, 5), c)
+        elif kind == "torch":
+            b(_at(0, 2, 0), Vec3(30, 4, 4), EARTH_I[2])
+            b(_at(14, 3, 0), Vec3(7, 6, 6), EARTH_I[1])
+            if thing.fuel > 0:
+                self.shaded(False)
+                b(_at(19, 5, 0), Vec3(6, 8, 6), FIRE_I[5])
+                self.shaded(True)
+        elif kind == "bread":
+            b(_at(0, 4, 0), Vec3(22, 8, 12), EARTH_I[4])
+            b(_at(0, 8, 0), Vec3(18, 3, 9), EARTH_I[5])
+        elif kind == "waterskin":
+            b(_at(0, 6, 0), Vec3(16, 12, 12), EARTH_I[3])
+            b(_at(-10, 5, 0), Vec3(6, 4, 4), EARTH_I[2])
+            b(_at(-14, 5, 0), Vec3(3, 5, 5), STONE_I[5])
+        elif kind in ("dagger", "sword"):
+            n = 18 if kind == "dagger" else 36
+            b(_at(n / 2 + 4, 1.5, 0), Vec3(n, 2, 5), STONE_I[6])
+            b(_at(3, 2, 0), Vec3(3, 3, 14), FIRE_I[2])
+            b(_at(-5, 2, 0), Vec3(12, 3, 3), EARTH_I[2])
+        elif kind == "buckler":
+            b(_at(0, 2, 0), Vec3(22, 4, 22), EARTH_I[3])
+            b(_at(0, 2, 0, 45), Vec3(22, 3.5, 22), EARTH_I[3])
+            b(_at(0, 5, 0), Vec3(7, 3, 7), STONE_I[6])
+        elif kind == "cap":
+            b(_at(0, 4, 0), Vec3(18, 8, 18), EARTH_I[3])
+            b(_at(0, 9, 0), Vec3(12, 3, 12), EARTH_I[4])
+        elif kind == "jerkin":
+            b(_at(0, 2, 0), Vec3(26, 4, 24), EARTH_I[3])
+            b(_at(0, 2, -15), Vec3(36, 3, 8), EARTH_I[2])
         else:
-            self.box(Mat4.from_translation(Vec3(0, 5, 0)), Vec3(10, 10, 10), 30)
+            b(_at(0, 5, 0), Vec3(10, 10, 10), 30)
 
 
 def open_sides(dungeon, cell):

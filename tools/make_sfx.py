@@ -11,6 +11,7 @@ import struct
 import wave
 
 SR = 22050
+STAIR_PACE = 0.46  # seconds per step on the stairs, the same as walking
 OUT = os.path.join(os.path.dirname(__file__), "..", "game", "sfx")
 
 
@@ -172,12 +173,16 @@ def main():
     write("plate_up", mix((0, env(bandpass(noise(0.05, rnd), 700, 3000), 0.001, 0.01), 0.7),
                           (0.02, thump(rnd, 120, 0.15, 0.2, 0.03), 0.5)))
 
-    # stairs: footsteps on stone, falling (down) or rising (up) in pitch, with a stairwell echo
+    # stairs: footsteps on stone, falling (down) or rising (up) in pitch, with a stairwell echo.
+    # Four steps at walking pace (STRIDE_WALK / WALK = 0.46 s); a fifth is drawn and dropped
+    # so the sounds generated after these stay as tuned.
     def steps(direction):
         parts = []
         for k in range(5):
             f = 110 - direction * k * 9
-            parts.append((k * 0.17, thump(rnd, f, 0.16, 0.8, 0.03), 1.0 - k * 0.08))
+            step = thump(rnd, f, 0.16, 0.8, 0.03)
+            if k < 4:
+                parts.append((k * STAIR_PACE, step, 1.0 - k * 0.1))
         return echo(mix(*parts), 0.11, 0.3, 3)
 
     write("stairs_down", steps(+1))
@@ -214,6 +219,29 @@ def main():
     write("drip", echo(drop, 0.23, 0.35, 4), peak=0.5)
 
     combat_sounds()
+    p4_sounds()
+
+
+def p4_sounds():
+    """P4 sounds (eating, drinking, a level gained), from their own generator."""
+    rnd = random.Random(404)
+
+    # eating: three soft crunches
+    def crunch_bite(gain):
+        return [v * gain for v in env(bandpass(noise(0.07, rnd), 600, 3000), 0.003, 0.02)]
+    write("eat", mix((0, crunch_bite(1.0), 1.0), (0.16, crunch_bite(0.8), 1.0), (0.33, crunch_bite(0.6), 1.0)), peak=0.55)
+
+    # drinking: two gulps, low bubbly blips falling in pitch
+    def gulp():
+        return env(tone(0.09, lambda t: 420 * math.exp(-t * 14) + 160), 0.004, 0.03)
+    splash = env(bandpass(noise(0.15, rnd), 1500, 6000), 0.005, 0.05)
+    write("drink", mix((0, splash, 0.25), (0.05, gulp(), 1.0), (0.32, gulp(), 0.9)), peak=0.6)
+
+    # a level gained: a bright rising arpeggio
+    notes = (523, 659, 784, 1047)
+    arp = mix(*[(k * 0.08, env(mix((0, tone(0.5, f), 1.0), (0, tone(0.5, f * 2), 0.25)), 0.004, 0.14), 0.7)
+                for k, f in enumerate(notes)])
+    write("levelup", echo(arp, 0.12, 0.25, 2), peak=0.5)
 
 
 def combat_sounds():

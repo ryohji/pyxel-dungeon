@@ -34,6 +34,7 @@ class Player:
         self.dip = 0.0  # eye lowered after a hard landing
         self.shake = (0.0, 0.0, 0.0)  # eye offset from screen shake
         self.drag_from = None
+        self.can_run = lambda: True  # the world says no when the fighter is worn out
 
     # ------------------------------------------------------------ input
     def update(self):
@@ -78,7 +79,7 @@ class Player:
             vx -= rx; vz -= rz
         length = math.hypot(vx, vz)
         if length > 0:
-            target = 1.0 if pyxel.btn(pyxel.KEY_SHIFT) else 0.0
+            target = 1.0 if pyxel.btn(pyxel.KEY_SHIFT) and self.can_run() else 0.0
             self.gait += (target - self.gait) * GAIT_EASE
             g = self.gait
             speed = WALK + (RUN - WALK) * g

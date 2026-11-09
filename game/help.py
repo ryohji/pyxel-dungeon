@@ -13,18 +13,21 @@ HELP = [
     ("Q E / LEFT RIGHT", "turn"),
     ("UP DOWN", "look up / down (R levels the view)"),
     ("Right drag", "look around"),
-    ("Left click", "attack, take, pull a lever, try a door"),
-    ("", "holding an item: click the floor to put it"),
-    ("", "down, a lock to use a key, else throw it"),
-    ("Space", "swing at the enemy in front"),
-    ("Tab", "map"),
+    ("Left click", "act on what you point at: attack, take,"),
+    ("", "pull, open, drink. Holding an item: put it"),
+    ("", "down, use a key, fill a waterskin, or throw"),
+    ("Tab", "choose the next target with the keyboard"),
+    ("Space", "act on the target (Tab's or the mouse's,"),
+    ("", "whichever you used last)"),
+    ("I", "inventory: equip, eat, drink (pauses)"),
+    ("M", "map"),
     ("F", "debug info (cost and fps)"),
     ("H", "open / close this help"),
 ]
 NOTES = [
-    "Mira, your companion, casts bolts and heals on her own.",
-    "If the party falls, you start again where you",
-    "entered the floor.",
+    "Mira casts bolts and heals on her own. Skills grow",
+    "with use. Eat, drink and keep a torch burning.",
+    "If the party falls, you restart at the floor's entrance.",
     "Turn off Japanese / IME input to play.",
 ]
 FOOTER = "H, Esc or click to close"
@@ -36,7 +39,7 @@ class Help:
         self.open = False
 
     def draw(self, w, h):
-        x0, y0, bw = 14, 18, w - 28
+        x0, y0, bw = 10, 14, w - 20
         bh = 24 + LINE_H * (len(HELP) + len(NOTES)) + 20
         pyxel.dither(0.85)
         pyxel.rect(x0, y0, bw, bh, BLACK)

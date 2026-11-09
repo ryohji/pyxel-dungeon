@@ -6,6 +6,7 @@ so grid rows grow southward (+Z).
 
 Map characters
   #  stone wall            M  mossy wall          S  wall with a switch
+  F  wall with a fountain
   .  floor                 D  door                _  pressure plate
   O  pit                   X  stairs down         U  stairs up
   ^ > v <  player start facing N / E / S / W  (a floor cell)
@@ -29,7 +30,7 @@ CELL = 100.0  # 1 m
 WALL_H = 100.0
 SUBDIV = 4  # faces are split SUBDIV x SUBDIV to hide affine texture warping
 
-WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", " ": "wall"}
+WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall", " ": "wall"}
 FLOOR_CHARS = set(".D_OXU")
 START_YAW = {"^": 0.0, ">": 90.0, "v": 180.0, "<": 270.0}
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))

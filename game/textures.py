@@ -4,7 +4,7 @@ import random
 
 import pyxel
 
-from palette import BLACK, EARTH_I, MOSS_I, STONE_I
+from palette import BLACK, EARTH_I, FIRE_I, MOSS_I, STONE_I
 
 TEX = 32
 TILES = ("wall", "floor", "ceiling", "wall_moss", "door", "shaft")
@@ -75,30 +75,93 @@ def make_atlas():
 
 
 ICON = 16
-ICONS = ("rock", "key_iron")
+ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin")
 
 
 def make_icons():
-    """16x16 icons for items held in the hand (color 0 is transparent)."""
+    """16x16 icons for items in the hand and the pack (color 0 is transparent)."""
     img = pyxel.Image(ICON * len(ICONS), ICON)
     img.cls(BLACK)
-    # rock
-    img.elli(2, 4, 12, 9, STONE_I[3])
-    img.elli(3, 4, 10, 7, STONE_I[5])
-    img.pset(6, 6, STONE_I[7])
-    img.pset(7, 6, STONE_I[6])
-    # iron key
-    ox = ICON
-    img.circb(ox + 4, 8, 3, STONE_I[6])
-    img.rect(ox + 7, 7, 8, 2, STONE_I[6])
-    img.rect(ox + 11, 9, 1, 3, STONE_I[6])
-    img.rect(ox + 13, 9, 1, 2, STONE_I[6])
-    img.pset(ox + 3, 6, STONE_I[7])
+    S, E = STONE_I, EARTH_I
+
+    def at(kind):
+        return ICONS.index(kind) * ICON
+
+    o = at("rock")
+    img.elli(o + 2, 4, 12, 9, S[3])
+    img.elli(o + 3, 4, 10, 7, S[5])
+    img.pset(o + 6, 6, S[7])
+    img.pset(o + 7, 6, S[6])
+
+    o = at("key_iron")
+    img.circb(o + 4, 8, 3, S[6])
+    img.rect(o + 7, 7, 8, 2, S[6])
+    img.rect(o + 11, 9, 1, 3, S[6])
+    img.rect(o + 13, 9, 1, 2, S[6])
+    img.pset(o + 3, 6, S[7])
+
+    o = at("torch")  # the flame is drawn on top while it burns
+    img.line(o + 4, 14, o + 10, 6, E[3])
+    img.line(o + 5, 14, o + 11, 6, E[2])
+    img.rect(o + 9, 4, 4, 4, E[1])
+
+    o = at("bread")
+    img.elli(o + 1, 5, 14, 8, E[4])
+    img.elli(o + 3, 5, 10, 5, E[6])
+    for x in (5, 8, 11):
+        img.line(o + x, 6, o + x + 1, 8, E[3])
+
+    o = at("waterskin")
+    img.elli(o + 2, 5, 11, 10, E[3])
+    img.elli(o + 4, 6, 6, 5, E[4])
+    img.rect(o + 11, 3, 3, 3, E[2])
+    img.rect(o + 12, 1, 3, 2, S[5])
+
+    o = at("dagger")
+    img.line(o + 3, 12, o + 11, 4, S[6])
+    img.line(o + 4, 12, o + 12, 4, S[7])
+    img.line(o + 1, 12, o + 5, 16, FIRE_I[2])
+    img.line(o + 1, 15, o + 2, 14, E[2])
+
+    o = at("sword")
+    img.line(o + 4, 11, o + 14, 1, S[6])
+    img.line(o + 5, 11, o + 14, 2, S[7])
+    img.line(o + 1, 9, o + 6, 14, FIRE_I[2])
+    img.line(o + 1, 14, o + 3, 12, E[2])
+    img.pset(o, 15, FIRE_I[3])
+
+    o = at("buckler")
+    img.circ(o + 8, 8, 6, E[3])
+    img.circb(o + 8, 8, 6, S[5])
+    img.circ(o + 8, 8, 2, S[6])
+    img.pset(o + 7, 7, S[7])
+
+    o = at("cap")
+    img.elli(o + 2, 4, 12, 10, E[3])
+    img.rect(o + 1, 9, 14, 3, E[2])
+    img.line(o + 5, 5, o + 9, 5, E[5])
+
+    o = at("jerkin")
+    img.rect(o + 3, 3, 10, 11, E[3])
+    img.rect(o + 1, 3, 3, 6, E[2])
+    img.rect(o + 12, 3, 3, 6, E[2])
+    img.line(o + 8, 3, o + 8, 13, E[1])
+    img.rect(o + 6, 2, 4, 2, BLACK)
     return img
 
 
 def icon_uv(kind):
     return ICONS.index(kind) * ICON, 0
+
+
+def draw_icon(icons, thing, x, y):
+    """Blit a thing's icon at (x, y), with a flame on a lit torch."""
+    u, v = icon_uv(thing.kind)
+    pyxel.blt(x, y, icons, u, v, ICON, ICON, BLACK)
+    if thing.kind == "torch" and thing.fuel > 0:
+        flick = pyxel.frame_count // 4 % 2
+        pyxel.rect(x + 9, y + 1 - flick, 4, 3 + flick, FIRE_I[4])
+        pyxel.rect(x + 10, y + 2, 2, 2, FIRE_I[5])
 
 
 def tile_image(atlas, name):

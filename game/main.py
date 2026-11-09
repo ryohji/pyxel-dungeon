@@ -1,15 +1,16 @@
-"""Pyxel Dungeon (P3): enemies and combat.
+"""Pyxel Dungeon (P4): characters, belongings, hunger and light.
 
 Controls
   W A S D        move / strafe        Shift  run
   Q E, <- ->     turn                 up/down  look up / down
   right drag     look around          R      level the view
-  left click     attack an enemy / take an item / pull a lever / open a door
-                 holding an item: click the floor to put it down,
-                 a locked door to use a key, anything else to throw
-  Space          swing at the enemy in front
-  Tab            toggle map           F      toggle debug info
-  H              help (pauses the game; open at start; Esc also closes it)
+  left click     act on what the mouse points at: attack, take, pull,
+                 open, drink; holding an item: put down, use a key, throw
+  Tab            choose the next target with the keyboard
+  Space          act on the target (the Tab choice, or what the mouse
+                 points at: whichever was used last)
+  I              inventory (pauses)   M      map
+  F              debug info           H      help (pauses; Esc also closes it)
 
 Arn (you) fights up front; Mira follows, casting bolts and healing on her own.
 """
@@ -23,22 +24,18 @@ import pyxel
 from dungeon import CELL
 from help import HINT, Help
 from ime import LatinInput
-from palette import BLACK, EARTH_I, FIRE_I, PALETTE, RED, STONE_I, WHITE
+from inventory import Inventory
+from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, PALETTE, RED, STONE_I, WHITE
 from sound import Sfx
-from textures import ICON, icon_uv, make_atlas, make_icons
-from world import REACH, World
+from textures import ICON, draw_icon, make_atlas, make_icons
+from world import World
 
 W, H = 320, 240
 TITLE = "Pyxel Dungeon"
 
 COMPASS = ("N", "E", "S", "W")
 
-HINTS = {
-    "item": "take",
-    "switch": "pull",
-    "door": "open / close",
-    "enemy": "attack",
-}
+PANEL_W, PANEL_H = 70, 24
 
 
 class App:
@@ -53,6 +50,8 @@ class App:
             self.world.messages.add("Tip: turn off Japanese/IME input to play.")
         self.help = Help()
         self.help.open = True  # first thing a new player sees
+        self.inventory = Inventory(self.icons)
+        self.last_mouse = None
         self.show_map = False
         self.show_debug = False
         self.cost_ms = 0.0
@@ -76,13 +75,26 @@ class App:
             return
         if self.help.open:
             return  # paused while reading
+        mx, my, clicked = self.pointer()
+        moved = self.last_mouse is not None and (mx, my) != self.last_mouse
+        self.last_mouse = (mx, my)
+        tab, space = pyxel.btnp(pyxel.KEY_TAB), pyxel.btnp(pyxel.KEY_SPACE)
+        if self.inventory.open:  # paused while sorting belongings
+            if pyxel.btnp(pyxel.KEY_I) or pyxel.btnp(pyxel.KEY_ESCAPE):
+                self.inventory.open = False
+            else:
+                self.inventory.update(self.world, mx, my, clicked, space, tab, moved)
+            return
         if pyxel.btnp(pyxel.KEY_ESCAPE):
             self.show_map = False
-        if pyxel.btnp(pyxel.KEY_TAB):
+        if pyxel.btnp(pyxel.KEY_M):
             self.show_map = not self.show_map
         if pyxel.btnp(pyxel.KEY_F):
             self.show_debug = not self.show_debug
-        self.world.update(*self.pointer(), attack_key=pyxel.btnp(pyxel.KEY_SPACE))
+        if pyxel.btnp(pyxel.KEY_I) or (clicked and self.panel_at(mx, my) is not None):
+            self.inventory.open = True
+            return
+        self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
         self.update_ms = (time.perf_counter() - t0) * 1000
 
     # ------------------------------------------------------------ draw
@@ -111,6 +123,8 @@ class App:
         self.draw_messages()
         if self.show_map:
             self.draw_map()
+        if self.world.mode == "keys" and not self.inventory.open:
+            self.draw_target()
         if self.show_debug:
             p = w.player
             gx, gy = p.cell
@@ -118,6 +132,8 @@ class App:
             pyxel.text(4, 24, f"cells {w.floor.view.cells_drawn:3d}  cost {self.cost_ms:4.1f}ms  "
                               f"fps {1000 / self.frame_ms:4.1f}", WHITE)
         pyxel.text(4, 4, HINT, STONE_I[4])
+        if self.inventory.open:
+            self.inventory.draw(w, pyxel.mouse_x, pyxel.mouse_y)
         if self.help.open:
             self.help.draw(W, H)
             pyxel.mouse(True)
@@ -145,21 +161,37 @@ class App:
             pyxel.text(x - 1, y + 3, COMPASS[deg // 90], FIRE_I[5])
         pyxel.tri(cx - 2, y + 14, cx + 2, y + 14, cx, y + 12, FIRE_I[4])  # heading marker
 
-    def draw_party(self):
-        """One panel per member: name, health and readiness."""
+    def panel_at(self, mx, my):
+        """The member whose panel is under the mouse (clicking it opens the inventory)."""
         party = self.world.party
-        for m, x in ((party.fighter, 4), (party.mage, W - 74)):
-            y = H - 22
+        for m, x in ((party.fighter, 4), (party.mage, W - 4 - PANEL_W)):
+            if x <= mx < x + PANEL_W and H - 4 - PANEL_H <= my < H - 4:
+                return m
+        return None
+
+    def draw_party(self):
+        """One panel per member: name, health, stamina, mana and readiness."""
+        party = self.world.party
+        for m, x in ((party.fighter, 4), (party.mage, W - 4 - PANEL_W)):
+            y = H - 4 - PANEL_H
             frame = RED if m.hit_flash % 4 >= 2 else STONE_I[3]
-            pyxel.rect(x, y, 70, 18, BLACK)
-            pyxel.rectb(x, y, 70, 18, frame)
+            pyxel.rect(x, y, PANEL_W, PANEL_H, BLACK)
+            pyxel.rectb(x, y, PANEL_W, PANEL_H, frame)
             pyxel.text(x + 3, y + 3, m.name, WHITE if m.up else STONE_I[4])
             hp = f"{m.hp}/{m.max_hp}" if m.up else "down"
             pyxel.text(x + 67 - len(hp) * 4, y + 3, hp, FIRE_I[5] if m.up else STONE_I[4])
-            pyxel.rect(x + 3, y + 10, 64, 3, STONE_I[1])
-            pyxel.rect(x + 3, y + 10, round(64 * m.hp / m.max_hp), 3, RED)
+            bw = PANEL_W - 6
+            for row, (v, top, col) in enumerate(((m.hp, m.max_hp, RED), (m.stamina, m.max_stamina, MOSS_I[2]),
+                                                  (m.mana, m.max_mana, BLUE_I[2]))):
+                if not top:
+                    continue
+                by = y + 10 + row * 4
+                pyxel.rect(x + 3, by, bw, 3 if row == 0 else 2, STONE_I[1])
+                pyxel.rect(x + 3, by, round(bw * max(0, v) / top), 3 if row == 0 else 2, col)
             ready = 1 - m.cooldown / m.cooldown_max if m.cooldown else 1.0
-            pyxel.rect(x + 3, y + 14, round(64 * ready), 1, FIRE_I[4] if ready >= 1 else STONE_I[3])
+            pyxel.rect(x + 3, y + 21, round(bw * ready), 1, FIRE_I[4] if ready >= 1 else STONE_I[3])
+            if m.food < 20 or m.water < 20:  # hungry or thirsty: a small warning dot
+                pyxel.circ(x + PANEL_W - 4, y + PANEL_H - 4, 1, EARTH_I[6] if pyxel.frame_count // 20 % 2 else RED)
 
     def draw_sword(self):
         """The sword sweeping across the view while Arn swings, with a faint trail."""
@@ -208,29 +240,41 @@ class App:
             pyxel.text(x, y, text, col)
             y += 8
 
+    def draw_target(self):
+        """Corner brackets around the target chosen with Tab, with what Space will do."""
+        w = self.world
+        hit = w.key_target
+        if hit is None or w.travel is not None:
+            if w.hand is not None:
+                draw_icon(self.icons, w.hand, W // 2 - ICON // 2, H // 2 - ICON // 2)
+            return
+        x, y = hit.screen
+        s = max(6, min(26, 1600 / max(hit.t, 1)))
+        col = FIRE_I[5] if pyxel.frame_count // 15 % 2 else FIRE_I[4]
+        for sx in (-1, 1):
+            for sy in (-1, 1):
+                cx, cy = x + sx * s, y + sy * s
+                pyxel.line(cx, cy, cx - sx * 4, cy, col)
+                pyxel.line(cx, cy, cx, cy - sy * 4, col)
+        label = w.action_name(hit)
+        if label:
+            pyxel.text(x - len(label) * 2 + 1, y + s + 4, label, BLACK)
+            pyxel.text(x - len(label) * 2, y + s + 3, label, FIRE_I[5])
+        if w.hand is not None:
+            draw_icon(self.icons, w.hand, x + s - 4, y - s - 12)
+
     def draw_cursor(self):
         w = self.world
         mx, my = pyxel.mouse_x, pyxel.mouse_y
-        hover = w.hover
-        hint = None
-        if hover is not None and hover.kind == "enemy" and w.hand is None:
-            hint = "attack"
-        elif hover is not None and hover.t <= REACH and w.travel is None:
-            if w.hand is None:
-                hint = HINTS.get(hover.kind)
-                if hover.kind == "door" and (hover.obj.controlled or hover.obj.lock is not None):
-                    hint = "try"
-            elif hover.kind == "floor":
-                hint = "put down"
-            elif hover.kind == "door" and hover.obj.lock is not None:
-                hint = "use key"
+        if w.mode == "keys":
+            pyxel.mouse(False)  # the keyboard has the target; moving the mouse takes it back
+            return
+        hint = None if self.inventory.open else w.action_name(w.hover)
         if w.hand is None:
             pyxel.mouse(True)
         else:
             pyxel.mouse(False)
-            u, v = icon_uv(w.hand)
-            pyxel.blt(mx - ICON // 2, my - ICON // 2, self.icons, u, v, ICON, ICON, BLACK)
-            hint = hint or "throw"
+            draw_icon(self.icons, w.hand, mx - ICON // 2, my - ICON // 2)
         if hint:
             pyxel.text(mx + 10, my + 6, hint, BLACK)
             pyxel.text(mx + 9, my + 5, hint, FIRE_I[5])

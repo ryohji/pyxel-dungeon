@@ -1,8 +1,8 @@
 """Sound effects: load the WAVs and play them with distance-based volume.
 
 Channels
-  0  the player's hands and body (lever, key, take, throw, sword, getting hurt)
-  1  mechanisms and enemies (doors, plates, skeleton swings, alerts, collapse)
+  0  the player's hands and body (lever, key, take, throw, sword, getting hurt, eating)
+  1  mechanisms and enemies (doors, plates, skeleton swings, alerts, collapse), level gained
   2  impacts and footsteps (thuds, hits on bone)
   3  travel, the companion and ambience (stairs, falling, bolts, healing, drips)
 """
@@ -17,7 +17,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 NAMES = ("lever", "unlock", "door_open", "door_close", "thud", "knock", "throw", "pickup",
          "plate_down", "plate_up", "stairs_down", "stairs_up", "fall", "land", "step0", "step1", "drip", "run0", "run1",
-         "swing", "hit_bone", "enemy_swing", "hurt", "collapse", "alert", "bolt", "bolt_hit", "heal", "defeat")
+         "swing", "hit_bone", "enemy_swing", "hurt", "collapse", "alert", "bolt", "bolt_hit", "heal", "defeat",
+         "eat", "drink", "levelup")
 
 CHANNEL = {
     "lever": 0, "unlock": 0, "throw": 0, "pickup": 0,
@@ -26,6 +27,7 @@ CHANNEL = {
     "stairs_down": 3, "stairs_up": 3, "fall": 3, "land": 3, "drip": 3,
     "swing": 0, "hit_bone": 2, "hurt": 0, "bolt": 3, "heal": 3, "defeat": 3,
     "enemy_swing": 1, "collapse": 1, "alert": 1, "bolt_hit": 2,
+    "eat": 0, "drink": 0, "levelup": 1,
 }
 BASE_GAIN = {"step0": 0.4, "step1": 0.4, "run0": 0.55, "run1": 0.55, "drip": 0.45, "throw": 0.7, "pickup": 0.7}
 MAX_GAIN = 0.5  # Channel.gain at full volume (Pyxel's default is 0.125)

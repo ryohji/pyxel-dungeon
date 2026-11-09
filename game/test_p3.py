@@ -11,6 +11,7 @@ from objects import cell_center
 from palette import PALETTE
 from sound import NullSfx
 from textures import make_atlas
+from things import Thing
 from world import World
 
 W, H = 320, 240
@@ -79,7 +80,8 @@ other = next(e for e in fl.enemies if e is not guard)
 gate = fl.doors[(10, 12)]
 check(gate.blocks_move, "the gate is closed")
 place((9, 12), 90)
-party.restore([(40, 0), (28, 0)])
+for m in party.members:
+    m.hp = m.max_hp
 other.state, other.last_seen = "chase", (p.x, p.z)
 crossed = False
 for _ in range(400):
@@ -89,7 +91,7 @@ check(not crossed, "the far guard could not get through the closed gate")
 
 # 4. a thrown rock hurts an enemy
 place((12, 12), 90)
-world.hand = "rock"
+world.hand = Thing("rock")
 other.state, other.x, other.z = "idle", 1450, 1250
 face(other)
 hp_before = other.hp
@@ -110,7 +112,7 @@ old_floor = world.floor
 tick(130)
 check(world.wipe is None and world.floor is not old_floor, "the floor was loaded afresh")
 check((round(p.x), round(p.z)) == (round(entry["x"]), round(entry["z"])), "back at the entrance")
-check([m.hp for m in party.members] == [hp for hp, _ in entry["party"]], "party health as on entry")
+check([m.hp for m in party.members] == [s["hp"] for s in entry["party"]], "party health as on entry")
 check(all(e.alive for e in world.floor.enemies), "the guards are back")
 
 print("all checks passed")

@@ -10,6 +10,7 @@ from dungeon import CELL
 from palette import BLACK, build_band_shadings
 
 BAND = CELL / 2  # distance per light band (one half-step darker each)
+MAX_DARK = 4  # bands of darkness with no torch at all
 
 
 def flicker_band(x, flicker):
@@ -56,7 +57,7 @@ class DungeonView:
         self.camera.far = CELL * (radius + 1.5)
         self.camera.clear_color = BLACK
         self.root.camera = self.camera
-        self.shadings = build_band_shadings(int(radius * CELL / BAND) + 2)
+        self.shadings = build_band_shadings(int(radius * CELL / BAND) + 2 + MAX_DARK)
         self.root.shading = self.shadings[0]
 
         self.nodes = {}
@@ -71,6 +72,8 @@ class DungeonView:
         self.flicker_target = 0.0
         self.rnd = random.Random()
         self.cells_drawn = 0
+        self.dark = 0  # extra bands of darkness when the torch is low or gone
+        self.flicker_amount = 1.0
 
     def update(self, eye, yaw, pitch, frame):
         yr, pr = math.radians(yaw), math.radians(pitch)
@@ -89,7 +92,7 @@ class DungeonView:
         last_band = len(self.shadings) - 1
         for key, dist in visible.items():
             node = self.nodes[key]
-            band = flicker_band(dist / BAND, self.flicker)
+            band = flicker_band(dist / BAND, self.flicker * self.flicker_amount) + self.dark
             node.shading = self.shadings[max(0, min(last_band, band))]
             node.visible = True
             for extra in self.extras.get(key, ()):

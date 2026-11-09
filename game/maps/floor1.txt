@@ -1,5 +1,5 @@
 ; Floor 1 - the cellar
-; #  wall  M  mossy wall  S  lever  .  floor  D  door  _  plate  O  pit  X  stairs down
+; #  wall  M  mossy wall  S  lever  F  fountain  .  floor  D  door  _  plate  O  pit  X  stairs down
 ##############################
 #.....############.....#######
 #.....############..X..#######
@@ -15,7 +15,7 @@
 #.........D......O........####
 #.........######..........####
 #_........######......O...####
-################MMMMMMMMMM####
+#####F##########MMMMMMMMMM####
 ##############################
 @below floor2
 ; the lever opens the cell door
@@ -30,3 +30,8 @@
 ; a guard in the rock room, another among the pits
 @enemy 6,13 skeleton 270
 @enemy 23,12 skeleton 270
+; supplies
+@item 3,1 torch
+@item 2,13 bread
+@item 8,10 dagger
+@item 21,2 cap

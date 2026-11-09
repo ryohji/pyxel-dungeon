@@ -1,0 +1,31 @@
+key,value,note
+food_start,80,food and water run from 0 to 100
+water_start,80,
+food_per_min,2.0,hunger: 100 lasts about 50 minutes
+water_per_min,3.0,thirst: 100 lasts about 33 minutes
+hungry_below,20,warn the player below this
+starve_hp_sec,8,"with no food or no water, lose 1 HP this often (seconds)"
+stamina_regen,4.0,stamina regained per second at rest
+stamina_run,6.0,stamina spent per second while running
+stamina_swing,5,stamina spent per sword swing
+tired_below,8,"below this, no running and swings hit for half"
+mana_regen,0.5,mana regained per second (plus WIS / 20)
+bolt_mana,4,mana per bolt
+heal_mana,8,mana per heal
+fist_min,1,bare-handed damage
+fist_max,2,
+str_per_damage,4,one extra point of sword damage per this much STR
+dex_per_throw,4,one extra point of throw damage per this much DEX
+wis_per_bolt,5,one extra point of bolt damage per this much WIS
+wis_per_heal,2,one extra point of healing per this much WIS
+level_per_damage,2,one extra point of damage per this many skill levels
+bolt_min,3,
+bolt_max,5,
+heal_base,8,
+swing_cooldown,36,frames between swings
+swing_cooldown_per_level,2,frames shaved off per fighter level above 1
+xp_hit,1,xp per point of damage dealt
+xp_kill,8,extra xp for the killing blow
+xp_heal,1,xp per point healed
+xp_throw,3,ninja xp for a thrown item that hits
+torch_dim,0.35,"a torch with less fuel than this fraction starts to dim"
