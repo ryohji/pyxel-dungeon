@@ -213,6 +213,62 @@ def main():
     drop = env(tone(0.12, lambda t: 1900 * math.exp(-t * 9) + 700), 0.001, 0.025)
     write("drip", echo(drop, 0.23, 0.35, 4), peak=0.5)
 
+    combat_sounds()
+
+
+def combat_sounds():
+    """P3 sounds, from their own generator so the earlier sounds stay as tuned."""
+    rnd = random.Random(303)
+
+    def click(gain=1.0):
+        return [v * gain for v in env(highpass(noise(0.02, rnd), 1800), 0.0005, 0.004)]
+
+    def rattle(sec, rate, decay_rate=0.0):
+        parts, t = [], 0.0
+        while t < sec:
+            parts.append((t, click(rnd.uniform(0.4, 1.0) * math.exp(-t * decay_rate)), 1.0))
+            t += rnd.expovariate(rate)
+        return mix(*parts)
+
+    # the fighter's sword cutting the air
+    write("swing", env(bandpass(noise(0.2, rnd), 700, 3200), 0.035, 0.035, hold=0.02), peak=0.6)
+
+    # a blade or bolt cracking bone
+    knock = env(tone(0.08, lambda t: 480 * math.exp(-t * 18) + 180), 0.001, 0.018)
+    write("hit_bone", mix((0, click(1.0), 1.0), (0, knock, 0.9), (0.02, rattle(0.12, 60, 15), 0.6)))
+
+    # a skeleton raising its blade (bones rattle) and bringing it down (whoosh)
+    whoosh = env(bandpass(noise(0.18, rnd), 500, 2500), 0.03, 0.04, hold=0.02)
+    write("enemy_swing", mix((0, rattle(0.3, 40, 4), 0.7), (0.42, whoosh, 1.0)), peak=0.7)
+
+    # the party taking a blow
+    write("hurt", mix((0, thump(rnd, 85, 0.3, 0.9, 0.06), 1.0),
+                      (0.0, env(lowpass(noise(0.2, rnd), 700), 0.002, 0.05), 0.6)), peak=0.85)
+
+    # bones clattering to the floor
+    write("collapse", mix((0, rattle(0.9, 45, 3), 1.0), (0.05, thump(rnd, 120, 0.2, 0.6, 0.03), 0.5),
+                          (0.35, thump(rnd, 95, 0.25, 0.7, 0.04), 0.6)), peak=0.8)
+
+    # a skeleton noticing the party
+    write("alert", echo(rattle(0.35, 55, 2), 0.13, 0.35, 3), peak=0.6)
+
+    # Mira's bolt: a rising buzz with sparks
+    buzz = [math.copysign(1, v) * 0.5 for v in tone(0.3, lambda t: 250 + 900 * t / 0.3)]
+    sparks = highpass(noise(0.3, rnd), 3000)
+    bolt = mix((0, env(lowpass(buzz, 2500), 0.01, 0.12, hold=0.1), 1.0), (0, env(sparks, 0.01, 0.1, hold=0.05), 0.35))
+    write("bolt", bolt, peak=0.55)
+    write("bolt_hit", mix((0, env(highpass(noise(0.25, rnd), 1200), 0.001, 0.05), 1.0),
+                          (0, thump(rnd, 150, 0.15, 0.3, 0.03), 0.6)), peak=0.7)
+
+    # healing: a soft rising chime
+    chime = mix(*[(k * 0.09, env(tone(0.6, f), 0.005, 0.18), 0.6) for k, f in enumerate((880, 1109, 1319, 1760))])
+    write("heal", echo(chime, 0.15, 0.3, 2), peak=0.5)
+
+    # the party falls: a low falling drone
+    drone = [v * (0.7 + 0.3 * math.sin(2 * math.pi * 6 * i / SR))
+             for i, v in enumerate(tone(1.6, lambda t: 110 * math.exp(-t * 0.45)))]
+    write("defeat", env(mix((0, drone, 1.0), (0, lowpass(noise(1.6, rnd), 300), 0.4)), 0.05, 0.6, hold=0.6), peak=0.8)
+
 
 if __name__ == "__main__":
     main()

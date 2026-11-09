@@ -16,7 +16,7 @@ W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE
 sfx = NullSfx()
-world = World(make_atlas(), W, H, sfx)
+world = World(make_atlas(), W, H, sfx, peaceful=True)
 fl1 = world.floor
 p = world.player
 

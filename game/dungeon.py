@@ -17,6 +17,7 @@ mechanisms (coordinates are gx,gy):
                                   MODE is toggle, hold, or unlock
   @lock X,Y ITEM                  door at X,Y opens with ITEM
   @item X,Y ITEM                  item lying on the floor
+  @enemy X,Y KIND [YAW]           enemy standing in a cell, facing YAW degrees
   @below FLOOR / @above FLOOR     floors reached by pits, X and U
 """
 
@@ -45,6 +46,7 @@ class Dungeon:
         self.links = []  # (source, target, mode)
         self.locks = {}  # door cell -> item kind
         self.items = []  # (cell, kind)
+        self.enemies = []  # (cell, kind, yaw)
         self.below = self.above = None
         rows = []
         for ln in text.splitlines():
@@ -76,6 +78,8 @@ class Dungeon:
             self.locks[_xy(args[0])] = args[1]
         elif cmd == "item":
             self.items.append((_xy(args[0]), args[1]))
+        elif cmd == "enemy":
+            self.enemies.append((_xy(args[0]), args[1], float(args[2]) if len(args) > 2 else 0.0))
         elif cmd == "below":
             self.below = args[0]
         elif cmd == "above":

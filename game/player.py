@@ -96,33 +96,7 @@ class Player:
 
     # ------------------------------------------------------------ collision
     def _slide(self, x, z, vx, vz):
-        """Move with wall sliding; sub-steps keep fast moves from tunneling."""
-        steps = max(1, int(math.ceil(max(abs(vx), abs(vz)) / (RADIUS * 0.5))))
-        sx, sz = vx / steps, vz / steps
-        for _ in range(steps):
-            x, z = self._resolve(x + sx, z + sz)
-        return x, z
-
-    def _resolve(self, x, z):
-        """Push a circle out of the wall cells it overlaps."""
-        for _ in range(2):
-            for gx in range(int((x - RADIUS) // CELL), int((x + RADIUS) // CELL) + 1):
-                for gy in range(int((z - RADIUS) // CELL), int((z + RADIUS) // CELL) + 1):
-                    if not self.solid(gx, gy):
-                        continue
-                    cx = min(max(x, gx * CELL), (gx + 1) * CELL)
-                    cz = min(max(z, gy * CELL), (gy + 1) * CELL)
-                    dx, dz = x - cx, z - cz
-                    dist2 = dx * dx + dz * dz
-                    if dist2 >= RADIUS * RADIUS:
-                        continue
-                    dist = math.sqrt(dist2)
-                    if dist < 1e-6:
-                        continue  # center inside a wall: leave it to the next pass
-                    push = (RADIUS - dist) / dist
-                    x += dx * push
-                    z += dz * push
-        return x, z
+        return move_circle(x, z, vx, vz, RADIUS, self.solid)
 
     # ------------------------------------------------------------ view
     @property
@@ -142,3 +116,34 @@ class Player:
     @property
     def facing(self):
         return "NESW"[int(((self.yaw + 45) % 360) // 90)]
+
+
+def move_circle(x, z, vx, vz, radius, solid):
+    """Move a circle with wall sliding; sub-steps keep fast moves from tunneling."""
+    steps = max(1, int(math.ceil(max(abs(vx), abs(vz)) / (radius * 0.5))))
+    sx, sz = vx / steps, vz / steps
+    for _ in range(steps):
+        x, z = push_out(x + sx, z + sz, radius, solid)
+    return x, z
+
+
+def push_out(x, z, radius, solid):
+    """Push a circle out of the solid cells it overlaps."""
+    for _ in range(2):
+        for gx in range(int((x - radius) // CELL), int((x + radius) // CELL) + 1):
+            for gy in range(int((z - radius) // CELL), int((z + radius) // CELL) + 1):
+                if not solid(gx, gy):
+                    continue
+                cx = min(max(x, gx * CELL), (gx + 1) * CELL)
+                cz = min(max(z, gy * CELL), (gy + 1) * CELL)
+                dx, dz = x - cx, z - cz
+                dist2 = dx * dx + dz * dz
+                if dist2 >= radius * radius:
+                    continue
+                dist = math.sqrt(dist2)
+                if dist < 1e-6:
+                    continue  # center inside a wall: leave it to the next pass
+                push = (radius - dist) / dist
+                x += dx * push
+                z += dz * push
+    return x, z

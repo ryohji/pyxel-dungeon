@@ -1,4 +1,4 @@
-"""Floors, the player's hand, picking, and floor-to-floor travel."""
+"""Floors, the player's hand, combat, picking, and floor-to-floor travel."""
 
 import math
 import os
@@ -8,9 +8,12 @@ import pyxel
 from pyxel.cube import Vec3
 
 from dungeon import CELL, WALL_H, Dungeon
+from enemies import Skeleton
 from objects import (ITEM_RADIUS, Door, Item, Plate, StairsNode, Switch, cell_center, cell_of,
                      open_sides)
-from player import Player
+from party import ATTACK_COOLDOWN, BOLT_DAMAGE, SWORD_DAMAGE, SWORD_REACH, Party
+from player import RADIUS as PLAYER_RADIUS
+from player import Player, move_circle
 from textures import tile_image
 from view import DungeonView
 
@@ -19,11 +22,15 @@ REACH = 175.0  # how far the hand reaches from the eye
 GRAVITY = 0.35  # units / frame^2 for thrown items
 THROW_SPEED = 7.5
 FALL_FRAMES = 18  # fade out and in when changing floors
+WIPE_FRAMES = 90  # darkness after the party falls, before trying the floor again
+ENEMY_KINDS = {"skeleton": Skeleton}
+ENEMY_PICK_RADIUS = 26.0
+THROWN_DAMAGE = (2, 4)
 
 
 class Hit:
     def __init__(self, kind, t, point=None, obj=None, cell=None):
-        self.kind = kind  # item, switch, door, floor, wall, none
+        self.kind = kind  # item, enemy, switch, door, floor, wall, none
         self.t = t
         self.point = point
         self.obj = obj
@@ -31,7 +38,7 @@ class Hit:
 
 
 class Floor:
-    def __init__(self, name, atlas, door_image):
+    def __init__(self, name, atlas, door_image, peaceful=False):
         self.name = name
         self.d = Dungeon.load(os.path.join(HERE, "maps", f"{name}.txt"), name)
         d = self.d
@@ -59,10 +66,21 @@ class Floor:
 
         rnd = random.Random(hash(name) & 0xFFFF)
         self.events = []  # (sound name, (x, z), volume) raised during update
+        self.hits = []  # (enemy, cause) struck during update, for damage numbers
         self.items = []
         for cell, kind in d.items:
             x, z = cell_center(cell)
             self.add_item(Item(kind, x + rnd.uniform(-20, 20), z + rnd.uniform(-20, 20), yaw=rnd.uniform(0, 360)))
+        self.enemies = []
+        for cell, kind, yaw in ([] if peaceful else d.enemies):
+            enemy = ENEMY_KINDS[kind](*cell_center(cell), yaw)
+            self.enemies.append(enemy)
+            self.view.attach(enemy.node, enemy.cell)
+        self.bolts = []
+
+    def add_bolt(self, bolt):
+        self.bolts.append(bolt)
+        self.view.attach(bolt.node, bolt.cell)
 
     # ------------------------------------------------------------ queries
     def solid(self, gx, gy):
@@ -70,6 +88,10 @@ class Floor:
             return True
         door = self.doors.get((gx, gy))
         return door is not None and door.blocks_move
+
+    def enemy_solid(self, gx, gy):
+        """Enemies also keep out of pits and stairwells."""
+        return self.solid(gx, gy) or self.d.char(gx, gy) in "OXU"
 
     def blocks_sight(self, gx, gy):
         door = self.doors.get((gx, gy))
@@ -126,6 +148,12 @@ class Floor:
                 it.z = nz
         if knock > 1.0:
             self.emit("knock", (it.x, it.z), min(1.0, knock / 6))
+        if math.hypot(it.vx, it.vz) > 2.0:
+            for e in self.enemies:
+                if e.alive and math.hypot(it.x - e.x, it.z - e.z) < e.RADIUS + 6 and it.y < 80:
+                    self.hits.append((e, (it.x - it.vx, it.z - it.vz)))
+                    it.vx, it.vz = -it.vx * 0.25, -it.vz * 0.25
+                    break
         it.y += it.vy
         if it.y > WALL_H - 12:
             it.y, it.vy = WALL_H - 12, -abs(it.vy) * 0.5
@@ -165,8 +193,10 @@ class Messages:
 
 
 class World:
-    def __init__(self, atlas, w, h, sfx):
+    def __init__(self, atlas, w, h, sfx, peaceful=False):
         self.sfx = sfx
+        self.peaceful = peaceful  # no enemies (for puzzle tests)
+        self.party = Party()
         self.atlas = atlas
         self.door_image = tile_image(atlas, "door")
         self.w, self.h = w, h
@@ -182,23 +212,45 @@ class World:
         self.shake = 0.0  # screen shake strength, decays every frame
         self.last_step = 0
         self.rnd = random.Random()
+        self.swing = 0  # frames left of the sword-swing overlay
+        self.popups = []  # [world pos, text, age, color]
+        self.wipe = None  # frames since the party fell
+        self.hurt_flash = 0
+        self.entry = None
+        self._remember_entry()
 
     def get_floor(self, name):
         if name not in self.floors:
-            self.floors[name] = Floor(name, self.atlas, self.door_image)
+            self.floors[name] = Floor(name, self.atlas, self.door_image, self.peaceful)
         return self.floors[name]
 
+    def _remember_entry(self):
+        """What to go back to if the party falls on this floor."""
+        p = self.player
+        self.entry = dict(floor=self.floor.name, x=p.x, z=p.z, yaw=p.yaw,
+                          party=self.party.snapshot(), hand=self.hand, arrived_on=self.arrived_on)
+
     # ------------------------------------------------------------ frame
-    def update(self, mx, my, clicked):
-        if self.travel is not None:
+    def update(self, mx, my, clicked, attack_key=False):
+        self.party.tick()
+        self.swing = max(0, self.swing - 1)
+        self.hurt_flash = max(0, self.hurt_flash - 1)
+        if self.wipe is not None:
+            self._update_wipe()
+        elif self.travel is not None:
             self._update_travel()
         else:
             self.player.update()
+            self._keep_apart()
             self._check_cell_events()
             self.hover = self.pick(mx, my)
             if clicked:
                 self.click(self.hover)
+            if attack_key:
+                self.attack(self._enemy_in_front())
         p = self.player
+        if self.wipe is None:
+            self._update_combat()
         for it in self.floor.update(p.cell, self.messages):
             self.floor.remove_item(it)
             below = self.get_floor(self.floor.d.below)
@@ -216,6 +268,115 @@ class World:
             pitch += self.rnd.uniform(-1, 1) * self.shake * 2.5
         self.floor.view.update(p.eye, yaw, pitch, pyxel.frame_count)
         self.explored.setdefault(self.floor.name, set()).update(self.floor.view.shown)
+        for pop in self.popups:
+            pop[2] += 1
+        self.popups = [pop for pop in self.popups if pop[2] < 45]
+
+    # ------------------------------------------------------------ combat
+    def _update_combat(self):
+        fl = self.floor
+        for e in fl.enemies:
+            e.update(fl, self)
+            fl.view.move(e.node, e.cell)
+        for bolt in list(fl.bolts):
+            hit = bolt.step(fl)
+            if hit is None:
+                fl.view.move(bolt.node, bolt.cell)
+                continue
+            fl.bolts.remove(bolt)
+            fl.view.detach(bolt.node)
+            fl.emit("bolt_hit", (bolt.pos.x, bolt.pos.z))
+            if hit != "wall":
+                self._damage_enemy(hit, self.rnd.randint(*BOLT_DAMAGE), bolt.pos.x - bolt.vel.x, bolt.pos.z - bolt.vel.z)
+        for e, (fx, fz) in fl.hits:
+            self._damage_enemy(e, self.rnd.randint(*THROWN_DAMAGE), fx, fz)
+        fl.hits.clear()
+        if self.party.alive:
+            self.party.companion(self, fl)
+
+    def _keep_apart(self):
+        """Bodies do not overlap: push the player out of living enemies."""
+        p = self.player
+        for e in self.floor.enemies:
+            if not e.alive:
+                continue
+            dx, dz = p.x - e.x, p.z - e.z
+            d = math.hypot(dx, dz)
+            gap = PLAYER_RADIUS + e.RADIUS
+            if 1e-6 < d < gap:
+                push = gap - d
+                p.x, p.z = move_circle(p.x, p.z, dx / d * push, dz / d * push, PLAYER_RADIUS, self.floor.solid)
+
+    def _enemy_in_front(self):
+        p = self.player
+        yr = math.radians(p.yaw)
+        fx, fz = math.sin(yr), -math.cos(yr)
+        best, best_d = None, SWORD_REACH
+        for e in self.floor.enemies:
+            dx, dz = e.x - p.x, e.z - p.z
+            d = math.hypot(dx, dz)
+            if e.alive and d < best_d and dx * fx + dz * fz > d * 0.6:
+                best, best_d = e, d
+        return best
+
+    def attack(self, enemy):
+        """Swing the sword, hitting enemy if it is within reach."""
+        f = self.party.fighter
+        if not f.up or f.cooldown:
+            return
+        f.busy(ATTACK_COOLDOWN)
+        self.swing = 12
+        self.sfx.play("swing")
+        p = self.player
+        if enemy is not None and enemy.alive and math.hypot(enemy.x - p.x, enemy.z - p.z) <= SWORD_REACH:
+            self._damage_enemy(enemy, self.rnd.randint(*SWORD_DAMAGE), p.x, p.z)
+
+    def _damage_enemy(self, enemy, amount, from_x, from_z):
+        killed = enemy.hurt(amount, from_x, from_z)
+        self.sfx.play("hit_bone", 1.0, math.hypot(enemy.x - self.player.x, enemy.z - self.player.z))
+        self._popup(enemy.center + Vec3(0, 25, 0), str(amount), 1)
+        if killed:
+            self.messages.add(f"The {enemy.NAME} falls apart.")
+
+    def _popup(self, pos, text, kind):
+        self.popups.append([pos, text, 0, kind])
+
+    def hit_party(self, amount, enemy):
+        """An enemy's blow lands on the front member."""
+        m = self.party.front()
+        m.damage(amount)
+        self.sfx.play("hurt")
+        self.shake = max(self.shake, 0.35)
+        self.hurt_flash = 8
+        if not m.up:
+            self.messages.add(f"{m.name} falls!")
+        if not self.party.alive:
+            self.wipe = 0
+            self.sfx.play("defeat")
+            self.messages.add("The party has fallen...")
+
+    def _update_wipe(self):
+        self.wipe += 1
+        if self.wipe == WIPE_FRAMES:
+            self._restart_floor()
+        elif self.wipe >= WIPE_FRAMES + FALL_FRAMES:
+            self.wipe = None
+
+    def _restart_floor(self):
+        """Back to the moment the party entered this floor, with the floor as it was then."""
+        e = self.entry
+        self.floors.pop(e["floor"], None)
+        self.floor = self.get_floor(e["floor"])
+        p = self.player
+        p.solid = self.floor.solid
+        p.x, p.z, p.yaw, p.pitch = e["x"], e["z"], e["yaw"], 0.0
+        p.dip, self.shake = 0.0, 0.0
+        self.party.restore(e["party"])
+        self.hand = e["hand"]
+        self.arrived_on = e["arrived_on"]
+        self.swing = 0
+        self.popups.clear()
+        self.messages.add("You wake at the floor's entrance.")
 
     def _footsteps(self):
         step = int(self.player.bob / math.pi)
@@ -272,12 +433,18 @@ class World:
                 p.x, p.z = cx, cz
                 self.arrived_on = p.cell
             self.messages.add(message)
+            self._remember_entry()
         elif frame >= FALL_FRAMES * 2:
             self.travel = None
 
     @property
     def fade(self):
         """0 = clear, 1 = black."""
+        if self.wipe is not None:
+            w = self.wipe
+            if w < WIPE_FRAMES:
+                return min(1.0, w / 50)
+            return 1 - (w - WIPE_FRAMES) / FALL_FRAMES
         if self.travel is None:
             return 0.0
         f = self.travel[0]
@@ -287,7 +454,9 @@ class World:
     def click(self, hit):
         near = hit.t <= REACH
         if self.hand is None:
-            if hit.kind == "item" and near:
+            if hit.kind == "enemy":
+                self.attack(hit.obj)
+            elif hit.kind == "item" and near:
                 self.floor.remove_item(hit.obj)
                 self.hand = hit.obj.kind
                 self.sfx.play("pickup")
@@ -387,6 +556,18 @@ class World:
             t = -b - math.sqrt(disc)
             if 0 < t < hit.t:
                 hit = Hit("item", t, o + d * t, it, it.cell)
+        for e in self.floor.enemies:
+            if not e.alive:
+                continue
+            for cy in (20, 45, 70):  # three spheres stacked along the body
+                oc = o - Vec3(e.x, cy, e.z)
+                b = oc.dot(d)
+                disc = b * b - (oc.dot(oc) - ENEMY_PICK_RADIUS * ENEMY_PICK_RADIUS)
+                if disc < 0:
+                    continue
+                t = -b - math.sqrt(disc)
+                if 0 < t < hit.t:
+                    hit = Hit("enemy", t, o + d * t, e, e.cell)
         hit.ray = (o, d)
         return hit
 

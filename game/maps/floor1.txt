@@ -27,3 +27,6 @@
 @link 19,7 20,8 unlock
 @item 7,11 rock
 @item 24,10 key_iron
+; a guard in the rock room, another among the pits
+@enemy 6,13 skeleton 270
+@enemy 23,12 skeleton 270
