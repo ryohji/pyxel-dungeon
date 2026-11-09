@@ -14,6 +14,7 @@ from objects import (ITEM_RADIUS, Door, Fountain, Item, Plate, StairsNode, Switc
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
+import spells
 from tables import TUNE
 from textures import tile_image
 from view import MAX_DARK, DungeonView
@@ -81,6 +82,29 @@ class Floor:
             self.enemies.append(enemy)
             self.view.attach(enemy.node, enemy.cell)
         self.bolts = []
+        self.fields = {}  # cell -> spells.Field (walls of fire, ice, light, life)
+        self.effects = []  # short-lived sights such as bursts
+
+    def add_field(self, field):
+        old = self.fields.pop(field.cell, None)
+        if old is not None:
+            self.view.detach(old.node)
+        self.fields[field.cell] = field
+        self.view.attach(field.node, field.cell)
+
+    def add_effect(self, effect):
+        self.effects.append(effect)
+        self.view.attach(effect.node, effect.cell)
+
+    def update_spells(self, world):
+        for cell, field in list(self.fields.items()):
+            if not field.update(world, self):
+                del self.fields[cell]
+                self.view.detach(field.node)
+        for fx in list(self.effects):
+            if not fx.update():
+                self.effects.remove(fx)
+                self.view.detach(fx.node)
 
     def add_bolt(self, bolt):
         self.bolts.append(bolt)
@@ -91,11 +115,16 @@ class Floor:
         if self.d.is_wall(gx, gy):
             return True
         door = self.doors.get((gx, gy))
-        return door is not None and door.blocks_move
+        if door is not None and door.blocks_move:
+            return True
+        field = self.fields.get((gx, gy))
+        return field is not None and field.blocks_all
 
     def enemy_solid(self, gx, gy):
-        """Enemies also keep out of pits and stairwells."""
-        return self.solid(gx, gy) or self.d.char(gx, gy) in "OXU"
+        """Enemies also keep out of pits, stairwells and warding spells."""
+        field = self.fields.get((gx, gy))
+        return (self.solid(gx, gy) or self.d.char(gx, gy) in "OXU"
+                or (field is not None and field.blocks_enemies))
 
     def blocks_sight(self, gx, gy):
         door = self.doors.get((gx, gy))
@@ -313,9 +342,16 @@ class World:
             fl.bolts.remove(bolt)
             fl.view.detach(bolt.node)
             fl.emit("bolt_hit", (bolt.pos.x, bolt.pos.z))
-            if hit != "wall":
-                self._damage_enemy(hit, bolt.damage, bolt.pos.x - bolt.vel.x, bolt.pos.z - bolt.vel.z,
-                                   bolt.caster, "wizard")
+            if hit == "wall":
+                continue
+            fx, fz = bolt.pos.x - bolt.vel.x, bolt.pos.z - bolt.vel.z
+            if bolt.element is None:
+                self._damage_enemy(hit, bolt.damage, fx, fz, bolt.caster, "wizard")
+            else:
+                row = spells.SPELLS[(bolt.element, "bolt")]
+                spells.strike(self, hit, bolt.caster, bolt.element, row, bolt.power, fx, fz, bolt.damage)
+                if bolt.element in spells.SOUND:
+                    fl.emit(spells.SOUND[bolt.element], (bolt.pos.x, bolt.pos.z), 0.7)
         f = self.party.fighter
         for e, (fx, fz), thing in fl.hits:
             row = thing.row
@@ -323,6 +359,7 @@ class World:
             self.award(f, "ninja", TUNE["xp_throw"])
             self._damage_enemy(e, amount, fx, fz, f, "ninja")
         fl.hits.clear()
+        fl.update_spells(self)
         if self.party.alive:
             self.party.companion(self, fl)
 
@@ -368,7 +405,7 @@ class World:
                 lo, hi = weapon.row["damage_min"], weapon.row["damage_max"]
             else:
                 lo, hi = TUNE["fist_min"], TUNE["fist_max"]
-            amount = self.rnd.randint(lo, hi) + f.bonus("str", "str_per_damage", "fighter")
+            amount = self.rnd.randint(lo, hi) + f.bonus("str", "str_per_damage", "fighter") + self.party.ward("fire")
             if tired:
                 amount = max(1, amount // 2)
             self._damage_enemy(enemy, amount, p.x, p.z, f, "fighter")
@@ -396,7 +433,7 @@ class World:
     def hit_party(self, amount, enemy):
         """An enemy's blow lands on the front member."""
         m = self.party.front()
-        m.damage(max(1, amount - m.defense))
+        m.damage(max(1, amount - m.defense - self.party.ward("frost")))
         self.sfx.play("hurt")
         self.shake = max(self.shake, 0.35)
         self.hurt_flash = 8
@@ -577,6 +614,22 @@ class World:
         self.sfx.play("throw")
         self.messages.add(f"You throw {item.name}.")
         self.hand = None
+
+    # ------------------------------------------------------------ magic
+    def cast(self, runes):
+        """The leader casts a rune spell (power, element, shape)."""
+        if self.wipe is not None or self.travel is not None:
+            return "wait"
+        return spells.cast(self, self.party.leader, runes)
+
+    def aim(self):
+        """Where a spell bolt starts and which way it flies: at the targeted enemy, else straight ahead."""
+        o, d = self.screen_ray(self.w // 2, self.h // 2)
+        start = o + d * 20 + Vec3(0, -8, 0)
+        hit = self.target
+        if hit is not None and hit.kind == "enemy" and hit.obj.alive:
+            return start, (hit.obj.center - start).normalize()
+        return start, d
 
     # ------------------------------------------------------------ targets
     @property

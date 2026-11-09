@@ -220,6 +220,7 @@ def main():
 
     combat_sounds()
     p4_sounds()
+    p5_sounds()
 
 
 def p4_sounds():
@@ -242,6 +243,35 @@ def p4_sounds():
     arp = mix(*[(k * 0.08, env(mix((0, tone(0.5, f), 1.0), (0, tone(0.5, f * 2), 0.25)), 0.004, 0.14), 0.7)
                 for k, f in enumerate(notes)])
     write("levelup", echo(arp, 0.12, 0.25, 2), peak=0.5)
+
+
+def p5_sounds():
+    """P5 rune magic, from its own generator."""
+    rnd = random.Random(505)
+
+    # casting: a shimmer rising in pitch
+    shimmer = mix(*[(k * 0.04, env(tone(0.35, lambda t, f=f: f * (1 + 0.8 * t)), 0.01, 0.1), 0.5)
+                    for k, f in enumerate((660, 990, 1320))])
+    write("cast", mix((0, shimmer, 1.0), (0, env(highpass(noise(0.3, rnd), 4000), 0.02, 0.08), 0.2)), peak=0.5)
+
+    # fizzle: a short sputter falling away
+    sputter = env(bandpass(noise(0.35, rnd), 300, 1800), 0.005, 0.1)
+    write("fizzle", mix((0, sputter, 1.0), (0, env(tone(0.3, lambda t: 400 * math.exp(-t * 5)), 0.005, 0.08), 0.4)),
+          peak=0.5)
+
+    # fire: a roaring whoomph
+    roar = env(lowpass(noise(0.6, rnd), lambda t: 300 + 1500 * math.exp(-t * 6)), 0.01, 0.2, hold=0.1)
+    write("burn", mix((0, roar, 1.0), (0, thump(rnd, 70, 0.3, 0.3, 0.08), 0.6)), peak=0.8)
+
+    # frost: glassy crackle and a cold ring
+    crackle = mix(*[(rnd.uniform(0, 0.3), env(highpass(noise(0.02, rnd), 3000), 0.0005, 0.005), rnd.uniform(0.4, 1.0))
+                    for _ in range(14)])
+    ring = env(mix((0, tone(0.6, 1760), 1.0), (0, tone(0.6, 2637), 0.5)), 0.003, 0.2)
+    write("freeze", mix((0, crackle, 1.0), (0.02, ring, 0.3)), peak=0.6)
+
+    # light: a bright flash, a high sweep and a pop
+    sweep = env(tone(0.4, lambda t: 1200 + 2400 * t), 0.002, 0.12)
+    write("flash", mix((0, env(highpass(noise(0.08, rnd), 2000), 0.001, 0.02), 0.8), (0, sweep, 0.5)), peak=0.55)
 
 
 def combat_sounds():

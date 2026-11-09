@@ -10,7 +10,7 @@ from pyxel.cube import Mat4, Node, Vec3
 
 from enemies import line_of_sight
 from objects import cell_of
-from palette import FIRE_I, WHITE
+from palette import BLUE_I, FIRE_I, MOSS_I, WHITE
 from tables import KIT, LEVELS, MEMBERS, SKILLS, STATS, TUNE, xp_for
 from things import Thing
 
@@ -137,6 +137,8 @@ class Party:
         self.fighter = Member("Arn")
         self.mage = Member("Mira")
         self.members = (self.fighter, self.mage)
+        self.leader = self.fighter  # the member the player controls (casts the runes)
+        self.wards = {}  # element -> [frames left, amount]: spells laid on the whole party
         by_name = {m.name: m for m in self.members}
         for row in KIT:
             m = by_name[row["member"]]
@@ -162,13 +164,26 @@ class Party:
 
     @property
     def light(self):
-        """0..1: the brightest torch anyone holds."""
-        return max(m.light for m in self.members if m.up) if self.alive else 0.0
+        """0..1: the brightest torch anyone holds, or a Light ward."""
+        if not self.alive:
+            return 0.0
+        return max(1.0 if "light" in self.wards else 0.0, *(m.light for m in self.members if m.up))
+
+    def add_ward(self, element, frames, amount):
+        old = self.wards.get(element)
+        if old is None or old[0] < frames:
+            self.wards[element] = [frames, max(amount, old[1] if old else 0)]
+
+    def ward(self, element):
+        """The strength of an active ward, or 0."""
+        w = self.wards.get(element)
+        return w[1] if w else 0
 
     def snapshot(self):
         return copy.deepcopy([m.__dict__ for m in self.members])
 
     def restore(self, snap):
+        self.wards.clear()
         for m, state in zip(self.members, copy.deepcopy(snap)):
             m.__dict__.update(state)
             m.hit_flash = 0
@@ -185,6 +200,14 @@ class Party:
             m.stamina = min(m.max_stamina, m.stamina + regen)
             m.mana = min(m.max_mana, m.mana + (TUNE["mana_regen"] + m.stats["wis"] / 20) / 60)
         self.heal_cooldown = max(0, self.heal_cooldown - 1)
+        for element, w in list(self.wards.items()):
+            w[0] -= 1
+            if element == "life" and w[0] % 120 == 0:
+                for m in self.members:
+                    if m.up:
+                        m.heal(w[1])
+            if w[0] <= 0:
+                del self.wards[element]
 
     def needs(self, messages):
         """Hunger, thirst and torches burning down, once per frame."""
@@ -278,12 +301,22 @@ class Party:
 
 
 # ---------------------------------------------------------------- bolts
+BOLT_COLORS = {  # element -> (core, glow, tail)
+    None: (FIRE_I[5], WHITE, FIRE_I[3]),
+    "fire": (FIRE_I[5], FIRE_I[4], FIRE_I[2]),
+    "frost": (WHITE, BLUE_I[2], BLUE_I[1]),
+    "light": (WHITE, FIRE_I[5], FIRE_I[4]),
+    "life": (MOSS_I[2], WHITE, MOSS_I[1]),
+}
+
 class Bolt:
-    def __init__(self, pos, vel, caster=None, damage=3):
+    def __init__(self, pos, vel, caster=None, damage=3, element=None, power=1):
         self.pos = pos
         self.vel = vel
         self.caster = caster
         self.damage = damage
+        self.element = element  # None: Mira's own bolt; else a rune spell's element
+        self.power = power
         self.age = 0
         self.done = False
         self.node = BoltNode(self)
@@ -317,8 +350,11 @@ class BoltNode(Node):
 
     def on_draw(self):
         self.shaded(False)
-        flicker = (self.bolt.age // 2) % 2
-        self.sphere(Vec3.ZERO, 5 + flicker, FIRE_I[5] if flicker else WHITE)
-        tail = self.bolt.vel * -0.8
-        self.sphere(tail, 3, FIRE_I[3])
-        self.sphere(tail * 2, 2, FIRE_I[2])
+        b = self.bolt
+        flicker = (b.age // 2) % 2
+        core, glow, tail_col = BOLT_COLORS[b.element]
+        size = 5 + (b.power - 1)
+        self.sphere(Vec3.ZERO, size + flicker, core if flicker else glow)
+        tail = b.vel * -0.8
+        self.sphere(tail, size - 2, tail_col)
+        self.sphere(tail * 2, max(1, size - 3), tail_col)

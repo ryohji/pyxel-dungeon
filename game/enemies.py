@@ -60,6 +60,7 @@ class Skeleton:
     STRIKE = 6
     RECOVER = 30
     DAMAGE = (3, 6)
+    UNDEAD = True  # light hurts it twice as much
 
     def __init__(self, x, z, yaw=0.0):
         self.x, self.z, self.yaw = x, z, yaw
@@ -77,6 +78,8 @@ class Skeleton:
         self.lost = 0
         self.rnd = random.Random(int(x * 7 + z * 13))
         self.idle_turn = self.rnd.randint(120, 300)
+        self.slow = 0  # frames of moving at half speed (frost)
+        self.stun = 0  # frames of standing dazed (light)
         self.node = SkeletonNode(self)
 
     # ------------------------------------------------------------ queries
@@ -128,6 +131,16 @@ class Skeleton:
                 floor.emit("collapse", (self.x, self.z))
             if self.t >= 40:
                 self._set("dead")
+            self.node.refresh()
+            return
+
+        self.slow = max(0, self.slow - 1)
+        if self.stun > 0:  # dazed: the swing is lost, nothing else happens
+            self.stun -= 1
+            if self.state == "attack":
+                self._set("chase")
+                self.cooldown = 20
+            self.walk_amount *= 0.85
             self.node.refresh()
             return
 
@@ -201,7 +214,7 @@ class Skeleton:
             self._turn_toward(p.x, p.z, 8)
             return False
         self._turn_toward(tx, tz, 7)
-        speed = self.CHASE
+        speed = self.CHASE * (0.45 if self.slow else 1.0)
         self.x, self.z = move_circle(self.x, self.z, dx / d * speed, dz / d * speed, self.RADIUS, floor.enemy_solid)
         self.walk_phase += speed * 0.075
         return True

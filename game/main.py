@@ -1,4 +1,4 @@
-"""Pyxel Dungeon (P4): characters, belongings, hunger and light.
+"""Pyxel Dungeon (P5): rune magic.
 
 Controls
   W A S D        move / strafe        Shift  run
@@ -9,6 +9,8 @@ Controls
   Tab            choose the next target with the keyboard
   Space          act on the target (the Tab choice, or what the mouse
                  points at: whichever was used last)
+  1-4            pick a rune (power, then element, then shape)
+  Enter          cast the runes       Backspace  take the last rune back
   I              inventory (pauses)   M      map
   F              debug info           H      help (pauses; Esc also closes it)
 
@@ -26,6 +28,7 @@ from help import HINT, Help
 from ime import LatinInput
 from inventory import Inventory
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, PALETTE, RED, STONE_I, WHITE
+from runes import RunePanel, draw_glyph
 from sound import Sfx
 from textures import ICON, draw_icon, make_atlas, make_icons
 from world import World
@@ -51,6 +54,7 @@ class App:
         self.help = Help()
         self.help.open = True  # first thing a new player sees
         self.inventory = Inventory(self.icons)
+        self.runes = RunePanel(H)
         self.last_mouse = None
         self.show_map = False
         self.show_debug = False
@@ -94,6 +98,8 @@ class App:
         if pyxel.btnp(pyxel.KEY_I) or (clicked and self.panel_at(mx, my) is not None):
             self.inventory.open = True
             return
+        if self.runes.update(self.world, mx, my, clicked):
+            clicked = False  # the click was on the rune panel, not the dungeon
         self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
         self.update_ms = (time.perf_counter() - t0) * 1000
 
@@ -120,6 +126,8 @@ class App:
             pyxel.dither(1.0)
         self.draw_compass()
         self.draw_party()
+        self.runes.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        self.draw_wards()
         self.draw_messages()
         if self.show_map:
             self.draw_map()
@@ -193,6 +201,15 @@ class App:
             if m.food < 20 or m.water < 20:  # hungry or thirsty: a small warning dot
                 pyxel.circ(x + PANEL_W - 4, y + PANEL_H - 4, 1, EARTH_I[6] if pyxel.frame_count // 20 % 2 else RED)
 
+    def draw_wards(self):
+        """Spells on the party, with the seconds they have left."""
+        x = 4
+        for element, (frames, _) in sorted(self.world.party.wards.items()):
+            if frames > 180 or frames // 8 % 2:  # blink in the last three seconds
+                draw_glyph(element, x, 14)
+            pyxel.text(x + 11, 16, str(frames // 60 + 1), STONE_I[6])
+            x += 26
+
     def draw_sword(self):
         """The sword sweeping across the view while Arn swings, with a faint trail."""
         s = self.world.swing
@@ -232,7 +249,7 @@ class App:
 
     def draw_messages(self):
         lines = self.world.messages.visible()
-        y = H - 10 - 8 * len(lines)
+        y = H - 34 - 8 * len(lines)
         for text, age in lines:
             col = WHITE if age < 150 else STONE_I[5]
             x = (W - len(text) * 4) // 2

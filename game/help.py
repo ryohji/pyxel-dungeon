@@ -10,8 +10,7 @@ TITLE = "CONTROLS"
 # (key, what it does); an empty key continues the previous line
 HELP = [
     ("W A S D", "move (hold Shift to run)"),
-    ("Q E / LEFT RIGHT", "turn"),
-    ("UP DOWN", "look up / down (R levels the view)"),
+    ("Q E / LEFT RIGHT", "turn (UP DOWN look, R levels)"),
     ("Right drag", "look around"),
     ("Left click", "act on what you point at: attack, take,"),
     ("", "pull, open, drink. Holding an item: put it"),
@@ -19,14 +18,15 @@ HELP = [
     ("Tab", "choose the next target with the keyboard"),
     ("Space", "act on the target (Tab's or the mouse's,"),
     ("", "whichever you used last)"),
+    ("1 2 3 4", "runes: power, then element, then shape"),
+    ("Enter", "cast them (Backspace takes one back)"),
     ("I", "inventory: equip, eat, drink (pauses)"),
-    ("M", "map"),
-    ("F", "debug info (cost and fps)"),
+    ("M  F", "map, debug info"),
     ("H", "open / close this help"),
 ]
 NOTES = [
-    "Mira casts bolts and heals on her own. Skills grow",
-    "with use. Eat, drink and keep a torch burning.",
+    "Fire Frost Light Life x Bolt Ward Burst Wall. Power needs",
+    "skill. Skills grow with use. Eat, drink, keep a torch lit.",
     "If the party falls, you restart at the floor's entrance.",
     "Turn off Japanese / IME input to play.",
 ]

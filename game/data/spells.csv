@@ -1,0 +1,17 @@
+element,shape,name,mana,amount_min,amount_max,duration_sec,note
+fire,bolt,Fireball,3,3,5,0,damage on hit
+fire,ward,Flame Blade,4,2,2,20,extra sword damage while it lasts
+fire,burst,Fire Ring,5,2,4,0,damage to every enemy close by
+fire,wall,Fire Wall,4,2,3,10,damage per second to enemies in the cell
+frost,bolt,Frost Bolt,3,2,4,4,damage and slows for duration
+frost,ward,Frost Skin,4,1,1,20,extra armor while it lasts
+frost,burst,Cold Snap,5,1,2,4,damage and slows every enemy close by
+frost,wall,Ice Wall,4,0,0,8,blocks the cell for everyone
+light,bolt,Sunbolt,3,2,3,1,damage (double on the undead) and stuns for duration
+light,ward,Light,2,0,0,60,lights the way without a torch
+light,burst,Flash,4,0,1,2,stuns every enemy close by
+light,wall,Bright Ward,3,0,0,10,the undead will not enter the cell
+life,bolt,Drain,4,2,4,0,damage; the caster heals half of it
+life,ward,Renewal,4,1,1,16,each member regains this much HP every two seconds
+life,burst,Mend,6,4,6,0,heals the whole party
+life,wall,Sanctuary,4,1,1,12,HP per second to the party standing in the cell

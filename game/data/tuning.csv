@@ -29,3 +29,8 @@ xp_kill,8,extra xp for the killing blow
 xp_heal,1,xp per point healed
 xp_throw,3,ninja xp for a thrown item that hits
 torch_dim,0.35,"a torch with less fuel than this fraction starts to dim"
+power_over_skill,1,"a rune of power can be at most this many levels above the caster's skill (wizard; priest for life)"
+burst_radius,160,reach of a burst around the caster
+xp_per_mana,2,wizard / priest xp per point of mana spent on a spell
+cast_cooldown,40,frames before the caster can swing or cast again
+fizzle_mana,0.5,fraction of the mana lost when the runes fizzle
