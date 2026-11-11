@@ -1,0 +1,10 @@
+; The camp at the mouth of the cellar
+; B  request board   C  counter (deliver, buy)   X  stairs down into the cellar
+#####B######
+#X.........#
+#..........C
+#..........#
+#....^.....#
+############
+@lit
+@below floor1

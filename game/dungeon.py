@@ -6,7 +6,7 @@ so grid rows grow southward (+Z).
 
 Map characters
   #  stone wall            M  mossy wall          S  wall with a switch
-  F  wall with a fountain
+  F  wall with a fountain  B  wall with a request board  C  wall with a counter
   .  floor                 D  door                _  pressure plate
   O  pit                   X  stairs down         U  stairs up
   ^ > v <  player start facing N / E / S / W  (a floor cell)
@@ -20,6 +20,7 @@ mechanisms (coordinates are gx,gy):
   @item X,Y ITEM                  item lying on the floor
   @enemy X,Y KIND [YAW]           enemy standing in a cell, facing YAW degrees
   @below FLOOR / @above FLOOR     floors reached by pits, X and U
+  @lit                            always bright (no torch needed)
 """
 
 from pyxel.cube import Primitive
@@ -30,7 +31,7 @@ CELL = 100.0  # 1 m
 WALL_H = 100.0
 SUBDIV = 4  # faces are split SUBDIV x SUBDIV to hide affine texture warping
 
-WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall", " ": "wall"}
+WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall", "B": "wall", "C": "wall", " ": "wall"}
 FLOOR_CHARS = set(".D_OXU")
 START_YAW = {"^": 0.0, ">": 90.0, "v": 180.0, "<": 270.0}
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -49,6 +50,7 @@ class Dungeon:
         self.items = []  # (cell, kind)
         self.enemies = []  # (cell, kind, yaw)
         self.below = self.above = None
+        self.lit = False
         rows = []
         for ln in text.splitlines():
             if ln.startswith(";"):
@@ -85,6 +87,8 @@ class Dungeon:
             self.below = args[0]
         elif cmd == "above":
             self.above = args[0]
+        elif cmd == "lit":
+            self.lit = True
         else:
             raise ValueError(f"unknown map command @{cmd}")
 

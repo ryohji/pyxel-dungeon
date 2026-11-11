@@ -71,6 +71,7 @@ SCENES = [
 
 
 class ShotApp(main.App):
+    START = "floor1"
     def __init__(self):
         self.scene = 0
         self.wait = None

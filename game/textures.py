@@ -4,7 +4,7 @@ import random
 
 import pyxel
 
-from palette import BLACK, EARTH_I, FIRE_I, MOSS_I, STONE_I
+from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, STONE_I
 
 TEX = 32
 TILES = ("wall", "floor", "ceiling", "wall_moss", "door", "shaft")
@@ -75,7 +75,8 @@ def make_atlas():
 
 
 ICON = 16
-ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin")
+ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin",
+         "ring", "lantern", "note", "remains", "idol")
 
 
 def make_icons():
@@ -147,10 +148,45 @@ def make_icons():
     img.rect(o + 12, 3, 3, 6, E[2])
     img.line(o + 8, 3, o + 8, 13, E[1])
     img.rect(o + 6, 2, 4, 2, BLACK)
+
+    o = at("ring")
+    img.circb(o + 8, 9, 4, S[7])
+    img.circb(o + 8, 9, 3, S[5])
+    img.rect(o + 7, 3, 3, 3, BLUE_I[2])
+    img.pset(o + 7, 3, STONE_I[7])
+
+    o = at("lantern")
+    img.rect(o + 5, 4, 7, 9, FIRE_I[2])
+    img.rect(o + 6, 5, 5, 7, FIRE_I[4])
+    img.rect(o + 7, 7, 3, 3, FIRE_I[5])
+    img.rect(o + 4, 13, 9, 2, FIRE_I[1])
+    img.circb(o + 8, 2, 2, FIRE_I[2])
+
+    o = at("note")
+    img.rect(o + 3, 2, 10, 12, S[7])
+    for y in (5, 7, 9, 11):
+        img.line(o + 5, y, o + 10, y, S[3])
+    img.rect(o + 9, 2, 4, 3, S[5])
+
+    o = at("remains")
+    img.rect(o + 1, 6, 11, 7, E[2])
+    img.rect(o + 2, 5, 8, 2, E[3])
+    img.circ(o + 13, 8, 2, S[7])
+    img.pset(o + 13, 8, BLACK)
+
+    o = at("idol")
+    img.rect(o + 4, 12, 8, 3, S[3])
+    img.rect(o + 5, 5, 6, 7, S[5])
+    img.rect(o + 5, 1, 6, 5, S[6])
+    img.pset(o + 6, 3, FIRE_I[4])
+    img.pset(o + 9, 3, FIRE_I[4])
     return img
 
 
 def icon_uv(kind):
+    for prefix in ("note", "remains"):
+        if kind.startswith(prefix + "_"):
+            kind = prefix
     return ICONS.index(kind) * ICON, 0
 
 

@@ -1,4 +1,4 @@
-"""Pyxel Dungeon (P5): rune magic.
+"""Pyxel Dungeon (P6): the camp, requests, and bringing things back.
 
 Controls
   W A S D        move / strafe        Shift  run
@@ -23,6 +23,7 @@ import time
 
 import pyxel
 
+from camp import CampScreen
 from dungeon import CELL
 from help import HINT, Help
 from ime import LatinInput
@@ -35,6 +36,7 @@ from world import World
 
 W, H = 320, 240
 TITLE = "Pyxel Dungeon"
+START = "camp"  # the floor a new game begins on
 
 COMPASS = ("N", "E", "S", "W")
 
@@ -42,19 +44,21 @@ PANEL_W, PANEL_H = 70, 24
 
 
 class App:
+    START = START
     def __init__(self):
         # no quit key: Esc closes the help screen instead (quit by closing the window)
         pyxel.init(W, H, title=TITLE, fps=60, quit_key=pyxel.KEY_NONE)
         self.latin = LatinInput(TITLE)  # a composing input method would swallow held keys
         pyxel.colors[:] = PALETTE
         self.icons = make_icons()
-        self.world = World(make_atlas(), W, H, Sfx())
+        self.world = World(make_atlas(), W, H, Sfx(), start=self.START)
         if sys.platform == "emscripten":  # in a browser the input method is out of our hands
             self.world.messages.add("Tip: turn off Japanese/IME input to play.")
         self.help = Help()
         self.help.open = True  # first thing a new player sees
         self.inventory = Inventory(self.icons)
         self.runes = RunePanel(H)
+        self.camp = CampScreen()
         self.last_mouse = None
         self.show_map = False
         self.show_debug = False
@@ -83,6 +87,12 @@ class App:
         moved = self.last_mouse is not None and (mx, my) != self.last_mouse
         self.last_mouse = (mx, my)
         tab, space = pyxel.btnp(pyxel.KEY_TAB), pyxel.btnp(pyxel.KEY_SPACE)
+        if self.camp.open:  # paused at the board or the counter
+            if pyxel.btnp(pyxel.KEY_ESCAPE):
+                self.camp.close()
+            else:
+                self.camp.update(self.world, mx, my, clicked, space, tab, moved)
+            return
         if self.inventory.open:  # paused while sorting belongings
             if pyxel.btnp(pyxel.KEY_I) or pyxel.btnp(pyxel.KEY_ESCAPE):
                 self.inventory.open = False
@@ -101,6 +111,9 @@ class App:
         if self.runes.update(self.world, mx, my, clicked):
             clicked = False  # the click was on the rune panel, not the dungeon
         self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
+        if self.world.screen is not None:
+            self.camp.show(self.world.screen)
+            self.world.screen = None
         self.update_ms = (time.perf_counter() - t0) * 1000
 
     # ------------------------------------------------------------ draw
@@ -131,7 +144,8 @@ class App:
         self.draw_messages()
         if self.show_map:
             self.draw_map()
-        if self.world.mode == "keys" and not self.inventory.open:
+        self.draw_load()
+        if self.world.mode == "keys" and not self.inventory.open and not self.camp.open:
             self.draw_target()
         if self.show_debug:
             p = w.player
@@ -142,6 +156,8 @@ class App:
         pyxel.text(4, 4, HINT, STONE_I[4])
         if self.inventory.open:
             self.inventory.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        if self.camp.open:
+            self.camp.draw(w, pyxel.mouse_x, pyxel.mouse_y)
         if self.help.open:
             self.help.draw(W, H)
             pyxel.mouse(True)
@@ -200,6 +216,17 @@ class App:
             pyxel.rect(x + 3, y + 21, round(bw * ready), 1, FIRE_I[4] if ready >= 1 else STONE_I[3])
             if m.food < 20 or m.water < 20:  # hungry or thirsty: a small warning dot
                 pyxel.circ(x + PANEL_W - 4, y + PANEL_H - 4, 1, EARTH_I[6] if pyxel.frame_count // 20 % 2 else RED)
+
+    def draw_load(self):
+        """What Arn carries on his back, above his panel."""
+        back = self.world.back
+        if back is None:
+            return
+        x, y = 4, H - 4 - PANEL_H - 19
+        pyxel.rect(x, y, 18, 18, BLACK)
+        pyxel.rectb(x, y, 18, 18, FIRE_I[3])
+        draw_icon(self.icons, back, x + 1, y + 1)
+        pyxel.text(x + 21, y + 6, "on your back", STONE_I[6])
 
     def draw_wards(self):
         """Spells on the party, with the seconds they have left."""
@@ -286,7 +313,7 @@ class App:
         if w.mode == "keys":
             pyxel.mouse(False)  # the keyboard has the target; moving the mouse takes it back
             return
-        hint = None if self.inventory.open else w.action_name(w.hover)
+        hint = None if self.inventory.open or self.camp.open else w.action_name(w.hover)
         if w.hand is None:
             pyxel.mouse(True)
         else:

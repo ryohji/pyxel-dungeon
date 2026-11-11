@@ -134,6 +134,10 @@ class Inventory:
                 draw_icon(self.icons, world.hand, chosen.x + 8, chosen.y - 8)
         if info:
             pyxel.text(X0 + 6, Y0 + PH - 22, info, FIRE_I[5])
+        load = f"On Arn's back: {world.back.name}" if world.back is not None else ""
+        coins = f"Coins: {world.coins}"
+        pyxel.text(X0 + 6, Y0 + PH - 32, load, STONE_I[6])
+        pyxel.text(X0 + PW - 6 - len(coins) * 4, Y0 + PH - 32, coins, FIRE_I[4])
         pyxel.text(X0 + 6, Y0 + PH - 10, FOOTER, STONE_I[5])
 
     def _member(self, m, x, y):

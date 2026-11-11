@@ -4,6 +4,9 @@
   skills.csv   for each skill and level: total xp needed, and the stats gained
   items.csv    what each kind of item is and does
   kit.csv      what each member starts with (slot: right, left, head, body, pack)
+  spells.csv   the 16 rune spells (element x shape)
+  requests.csv errands to bring things back: from the camp board, or from notes
+  shop.csv     what the camp counter sells
   tuning.csv   single numbers: hunger, stamina, damage bonuses, xp awards, ...
 
 Edit the CSVs and restart the game; no code changes needed.
@@ -51,3 +54,11 @@ def xp_for(skill, level):
         if lv == level:
             return xp
     return 0
+
+REQUESTS = {r["id"]: r for r in rows("requests.csv")}  # source: board, or note (found in the dungeon)
+SHOP = rows("shop.csv")
+
+
+def note_kind(request_id):
+    """The item kind of the note that hands out a request found in the dungeon."""
+    return "note_" + request_id

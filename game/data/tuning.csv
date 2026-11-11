@@ -34,3 +34,5 @@ burst_radius,160,reach of a burst around the caster
 xp_per_mana,2,wizard / priest xp per point of mana spent on a spell
 cast_cooldown,40,frames before the caster can swing or cast again
 fizzle_mana,0.5,fraction of the mana lost when the runes fizzle
+coins_start,15,coins the party starts with
+carry_speed,0.75,walking speed while carrying a load on the back

@@ -5,7 +5,7 @@ import math
 from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL, SIDES, WALL_H
-from palette import BLUE_I, EARTH_I, FIRE_I, STONE_I
+from palette import BLUE_I, EARTH_I, FIRE_I, RED, STONE_I, WHITE
 from things import Thing
 
 DOOR_SPEED = 1 / 30  # fraction per frame
@@ -185,19 +185,74 @@ class StairsNode(Node):
                 self.box(Mat4.from_translation(Vec3(0, h / 2, -zc)), Vec3(CELL, h, depth), STONE_I[4])
 
 
-# ---------------------------------------------------------------- fountains
-class Fountain:
-    """A basin in a wall: drink from it, or refill a waterskin."""
+# ---------------------------------------------------------------- wall fixtures
+class Fixture:
+    """Something set into a wall, usable from every open side: fountain, board, counter."""
+
+    KIND = "fixture"
 
     def __init__(self, cell, open_sides):
         self.cell = cell
         self.nodes = []
         x, z = cell_center(cell)
         for dx, dy in open_sides:
-            node = FountainNode()
+            node = self.make_node()
             face = Vec3(x + dx * CELL / 2, 0, z + dy * CELL / 2)
             node.transform = Mat4.from_translation(face) * yaw_matrix(facing_yaw(dx, dy))
             self.nodes.append((node, (cell[0] + dx, cell[1] + dy)))
+
+    @property
+    def kind(self):
+        return self.KIND
+
+
+class Fountain(Fixture):
+    """A basin in a wall: drink from it, or refill a waterskin."""
+
+    KIND = "fountain"
+
+    def make_node(self):
+        return FountainNode()
+
+
+class Board(Fixture):
+    """The camp's request board."""
+
+    KIND = "board"
+
+    def make_node(self):
+        return BoardNode()
+
+
+class Counter(Fixture):
+    """The camp counter: hand over what you brought back, buy supplies."""
+
+    KIND = "counter"
+
+    def make_node(self):
+        return CounterNode()
+
+
+class BoardNode(Node):
+    def on_draw(self):
+        self.box(Mat4.from_translation(Vec3(0, 55, 2)), Vec3(64, 44, 4), EARTH_I[3])
+        for x in (-34, 34):
+            self.box(Mat4.from_translation(Vec3(x, 40, 3)), Vec3(5, 80, 5), EARTH_I[2])
+        for i, (x, y, w, h) in enumerate(((-18, 62, 18, 16), (4, 66, 16, 12), (20, 50, 14, 16), (-14, 44, 20, 12))):
+            self.box(Mat4.from_translation(Vec3(x, y, 4.5)), Vec3(w, h, 1), (STONE_I[7], EARTH_I[7], STONE_I[6])[i % 3])
+            self.box(Mat4.from_translation(Vec3(x, y + h / 2 - 2, 5.5)), Vec3(2, 2, 1), RED)
+
+
+class CounterNode(Node):
+    def on_draw(self):
+        self.box(Mat4.from_translation(Vec3(0, 18, 14)), Vec3(80, 36, 26), EARTH_I[2])  # the counter
+        self.box(Mat4.from_translation(Vec3(0, 37, 15)), Vec3(86, 4, 30), EARTH_I[4])  # its top
+        self.box(Mat4.from_translation(Vec3(-24, 42, 18)), Vec3(12, 8, 12), FIRE_I[2])  # coin box
+        self.box(Mat4.from_translation(Vec3(20, 43, 14)), Vec3(14, 10, 10), STONE_I[5])  # scales
+        self.box(Mat4.from_translation(Vec3(0, 80, 8)), Vec3(3, 20, 3), STONE_I[3])  # lantern hook
+        self.shaded(False)
+        self.box(Mat4.from_translation(Vec3(0, 66, 8)), Vec3(8, 10, 8), FIRE_I[5])  # lantern
+        self.shaded(True)
 
 
 class FountainNode(Node):
@@ -297,6 +352,38 @@ class ItemNode(Node):
         elif kind == "jerkin":
             b(_at(0, 2, 0), Vec3(26, 4, 24), EARTH_I[3])
             b(_at(0, 2, -15), Vec3(36, 3, 8), EARTH_I[2])
+        elif kind == "ring":
+            for i in range(6):
+                a = i * 60
+                b(_at(math.cos(math.radians(a)) * 5, 1, math.sin(math.radians(a)) * 5, -a), Vec3(3, 2, 4), STONE_I[7])
+            b(_at(5, 2.5, 0), Vec3(3, 3, 3), BLUE_I[2])
+        elif kind == "lantern":
+            b(_at(0, 1, 0), Vec3(12, 2, 12), FIRE_I[2])
+            b(_at(0, 8, 0), Vec3(9, 12, 9), FIRE_I[3] if thing.fuel <= 0 else FIRE_I[4])
+            b(_at(0, 15, 0), Vec3(12, 2, 12), FIRE_I[2])
+            b(_at(0, 19, 0), Vec3(2, 6, 2), FIRE_I[2])
+        elif kind.startswith("note_"):  # pale paper drawn unshaded so it catches the eye in the dark
+            self.shaded(False)
+            b(_at(0, 0.5, 0, 12), Vec3(26, 1, 20), STONE_I[7])
+            b(_at(-9, 1.0, 9, 12), Vec3(8, 1, 6), WHITE)  # a dog-eared corner
+            for dz in (-5, 0, 5):
+                b(_at(1, 1.2, dz, 12), Vec3(16, 0.5, 1.5), STONE_I[3])
+            self.shaded(True)
+            b(_at(9, 3, -6), Vec3(8, 6, 7), STONE_I[4])  # a pebble keeps it from blowing away
+        elif kind.startswith("remains_"):
+            b(_at(0, 6, 0), Vec3(56, 12, 22), EARTH_I[2])  # wrapped in a cloak
+            b(_at(-10, 13, 0), Vec3(30, 4, 16), EARTH_I[3])
+            b(_at(32, 8, 0), Vec3(13, 13, 13), STONE_I[7])  # skull
+            b(_at(37, 8, 3), Vec3(4, 4, 3), STONE_I[1])
+            b(_at(37, 8, -3), Vec3(4, 4, 3), STONE_I[1])
+            b(_at(-32, 4, 6), Vec3(10, 6, 6), EARTH_I[1])  # boots
+            b(_at(-32, 4, -6), Vec3(10, 6, 6), EARTH_I[1])
+        elif kind == "idol":
+            b(_at(0, 4, 0), Vec3(22, 8, 22), STONE_I[3])
+            b(_at(0, 22, 0), Vec3(16, 28, 14), STONE_I[5])
+            b(_at(0, 42, 0), Vec3(14, 12, 12), STONE_I[6])
+            b(_at(4, 43, 6.5), Vec3(3, 3, 1), FIRE_I[4])
+            b(_at(-4, 43, 6.5), Vec3(3, 3, 1), FIRE_I[4])
         else:
             b(_at(0, 5, 0), Vec3(10, 10, 10), 30)
 

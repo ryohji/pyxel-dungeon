@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 NAMES = ("lever", "unlock", "door_open", "door_close", "thud", "knock", "throw", "pickup",
          "plate_down", "plate_up", "stairs_down", "stairs_up", "fall", "land", "step0", "step1", "drip", "run0", "run1",
          "swing", "hit_bone", "enemy_swing", "hurt", "collapse", "alert", "bolt", "bolt_hit", "heal", "defeat",
-         "eat", "drink", "levelup", "cast", "fizzle", "burn", "freeze", "flash")
+         "eat", "drink", "levelup", "cast", "fizzle", "burn", "freeze", "flash", "coins", "lift")
 
 CHANNEL = {
     "lever": 0, "unlock": 0, "throw": 0, "pickup": 0,
@@ -28,7 +28,7 @@ CHANNEL = {
     "swing": 0, "hit_bone": 2, "hurt": 0, "bolt": 3, "heal": 3, "defeat": 3,
     "enemy_swing": 1, "collapse": 1, "alert": 1, "bolt_hit": 2,
     "eat": 0, "drink": 0, "levelup": 1,
-    "cast": 0, "fizzle": 0, "burn": 2, "freeze": 2, "flash": 3,
+    "cast": 0, "fizzle": 0, "burn": 2, "freeze": 2, "flash": 3, "coins": 0, "lift": 0,
 }
 BASE_GAIN = {"step0": 0.4, "step1": 0.4, "run0": 0.55, "run1": 0.55, "drip": 0.45, "throw": 0.7, "pickup": 0.7}
 MAX_GAIN = 0.5  # Channel.gain at full volume (Pyxel's default is 0.125)

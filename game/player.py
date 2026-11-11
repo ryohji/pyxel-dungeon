@@ -35,6 +35,7 @@ class Player:
         self.shake = (0.0, 0.0, 0.0)  # eye offset from screen shake
         self.drag_from = None
         self.can_run = lambda: True  # the world says no when the fighter is worn out
+        self.speed_scale = lambda: 1.0  # slower under a load
 
     # ------------------------------------------------------------ input
     def update(self):
@@ -82,7 +83,7 @@ class Player:
             target = 1.0 if pyxel.btn(pyxel.KEY_SHIFT) and self.can_run() else 0.0
             self.gait += (target - self.gait) * GAIT_EASE
             g = self.gait
-            speed = WALK + (RUN - WALK) * g
+            speed = (WALK + (RUN - WALK) * g) * self.speed_scale()
             vx, vz = vx / length * speed, vz / length * speed
             ox, oz = self.x, self.z
             self.x, self.z = self._slide(self.x, self.z, vx, vz)

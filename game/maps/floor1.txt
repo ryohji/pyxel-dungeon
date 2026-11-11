@@ -1,7 +1,7 @@
 ; Floor 1 - the cellar
-; #  wall  M  mossy wall  S  lever  F  fountain  .  floor  D  door  _  plate  O  pit  X  stairs down
+; #  wall  M  mossy wall  S  lever  F  fountain  .  floor  D  door  _  plate  O  pit  X / U  stairs down / up
 ##############################
-#.....############.....#######
+#U....############.....#######
 #.....############..X..#######
 #.....S###########.....#######
 #..v..############.....#######
@@ -18,6 +18,7 @@
 #####F##########MMMMMMMMMM####
 ##############################
 @below floor2
+@above camp
 ; the lever opens the cell door
 @link 6,3 3,6 toggle
 ; the gate stays open only while something weighs on the plate
@@ -35,3 +36,7 @@
 @item 2,13 bread
 @item 8,10 dagger
 @item 21,2 cap
+; things to bring back
+@item 17,10 ring
+@item 25,14 idol
+@item 20,4 note_lantern

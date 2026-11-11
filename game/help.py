@@ -27,7 +27,7 @@ HELP = [
 NOTES = [
     "Fire Frost Light Life x Bolt Ward Burst Wall. Power needs",
     "skill. Skills grow with use. Eat, drink, keep a torch lit.",
-    "If the party falls, you restart at the floor's entrance.",
+    "Take requests at the camp board, bring things back to the counter.",
     "Turn off Japanese / IME input to play.",
 ]
 FOOTER = "H, Esc or click to close"

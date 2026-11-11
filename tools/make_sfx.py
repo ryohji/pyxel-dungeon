@@ -221,6 +221,7 @@ def main():
     combat_sounds()
     p4_sounds()
     p5_sounds()
+    p6_sounds()
 
 
 def p4_sounds():
@@ -243,6 +244,20 @@ def p4_sounds():
     arp = mix(*[(k * 0.08, env(mix((0, tone(0.5, f), 1.0), (0, tone(0.5, f * 2), 0.25)), 0.004, 0.14), 0.7)
                 for k, f in enumerate(notes)])
     write("levelup", echo(arp, 0.12, 0.25, 2), peak=0.5)
+
+
+def p6_sounds():
+    """P6: coins at the counter, lifting a load onto the back."""
+    rnd = random.Random(606)
+
+    def clink(f):
+        return env(mix((0, tone(0.25, f), 1.0), (0, tone(0.25, f * 2.76), 0.4)), 0.001, 0.05)
+    write("coins", mix(*[(k * 0.06 + rnd.uniform(0, 0.02), clink(rnd.uniform(2400, 3400)), 1.0 - k * 0.15)
+                         for k in range(5)]), peak=0.5)
+
+    # a grunt of effort is too much: cloth and a heavy shift of weight
+    cloth = env(bandpass(noise(0.35, rnd), 300, 2000), 0.08, 0.1)
+    write("lift", mix((0, cloth, 0.8), (0.25, thump(rnd, 75, 0.25, 0.4, 0.06), 1.0)), peak=0.6)
 
 
 def p5_sounds():

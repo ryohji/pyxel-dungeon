@@ -3,19 +3,20 @@
 import math
 import os
 import random
+import textwrap
 
 import pyxel
 from pyxel.cube import Vec3
 
 from dungeon import CELL, WALL_H, Dungeon
 from enemies import Skeleton, line_of_sight
-from objects import (ITEM_RADIUS, Door, Fountain, Item, Plate, StairsNode, Switch, cell_center, cell_of,
-                     open_sides)
+from objects import (ITEM_RADIUS, Board, Counter, Door, Fountain, Item, Plate, StairsNode, Switch, cell_center,
+                     cell_of, open_sides)
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
 import spells
-from tables import TUNE
+from tables import REQUESTS, TUNE, note_kind
 from textures import tile_image
 from view import MAX_DARK, DungeonView
 
@@ -29,7 +30,9 @@ WIPE_FRAMES = 90  # darkness after the party falls, before trying the floor agai
 ENEMY_KINDS = {"skeleton": Skeleton}
 ENEMY_PICK_RADIUS = 26.0
 TARGET_RANGE = 7 * CELL  # Tab reaches enemies this far away
-ACTIONS = {"item": "take", "switch": "pull", "door": "open / close", "enemy": "attack", "fountain": "drink"}
+ACTIONS = {"item": "take", "switch": "pull", "door": "open / close", "enemy": "attack", "fountain": "drink",
+           "board": "read", "counter": "trade"}
+FIXTURES = {"F": Fountain, "B": Board, "C": Counter}
 
 
 class Hit:
@@ -48,7 +51,7 @@ class Floor:
         d = self.d
         self.doors = {c: Door(c, d.door_axis(*c), d.locks.get(c), door_image) for c in d.cells_of("D")}
         self.switches = {c: Switch(c, open_sides(d, c)) for c in d.cells_of("S")}
-        self.fountains = {c: Fountain(c, open_sides(d, c)) for c in d.cells_of("F")}
+        self.fixtures = {c: FIXTURES[d.char(*c)](c, open_sides(d, c)) for c in d.cells_of("".join(FIXTURES))}
         self.plates = {c: Plate(c) for c in d.cells_of("_")}
         for src, tgt, mode in d.links:
             source = self.switches.get(src) or self.plates.get(src)
@@ -61,7 +64,7 @@ class Floor:
         self.view = DungeonView(d, atlas, blocks_sight=self.blocks_sight)
         for door in self.doors.values():
             self.view.attach(door.node, door.cell)
-        for wall in (*self.switches.values(), *self.fountains.values()):
+        for wall in (*self.switches.values(), *self.fixtures.values()):
             for node, cell in wall.nodes:
                 self.view.attach(node, cell)
         for plate in self.plates.values():
@@ -226,7 +229,7 @@ class Messages:
 
 
 class World:
-    def __init__(self, atlas, w, h, sfx, peaceful=False):
+    def __init__(self, atlas, w, h, sfx, peaceful=False, start="floor1"):
         self.sfx = sfx
         self.peaceful = peaceful  # no enemies (for puzzle tests)
         self.party = Party()
@@ -234,9 +237,13 @@ class World:
         self.door_image = tile_image(atlas, "door")
         self.w, self.h = w, h
         self.floors = {}
-        self.floor = self.get_floor("floor1")
+        self.floor = self.get_floor(start)
         self.player = Player(self.floor.d.start, self.floor.solid)
         self.hand = None  # the Thing held in the cursor, or None
+        self.back = None  # a heavy Thing Arn carries on his back, or None
+        self.coins = TUNE["coins_start"]
+        self.quests = {}  # request id -> 'accepted' or 'done'
+        self.screen = None  # 'board' / 'counter' when a camp screen should open
         self.messages = Messages()
         self.explored = {}  # floor name -> set of cells
         self.arrived_on = None  # stairs cell we arrived on; ignored until we step off
@@ -253,7 +260,8 @@ class World:
         self.mode = "mouse"  # which device picks the target: the one used last
         self.key_target = None  # Hit chosen with Tab
         self.key_pick = None  # (kind, obj) of that choice, to follow it across frames
-        self.player.can_run = lambda: not self.party.fighter.tired
+        self.player.can_run = lambda: not self.party.fighter.tired and self.back is None
+        self.player.speed_scale = lambda: TUNE["carry_speed"] if self.back is not None else 1.0
         self._remember_entry()
 
     def get_floor(self, name):
@@ -266,6 +274,7 @@ class World:
         p = self.player
         self.entry = dict(floor=self.floor.name, x=p.x, z=p.z, yaw=p.yaw,
                           party=self.party.snapshot(), hand=self.hand and self.hand.copy(),
+                          back=self.back and self.back.copy(), coins=self.coins, quests=dict(self.quests),
                           arrived_on=self.arrived_on)
 
     # ------------------------------------------------------------ frame
@@ -320,6 +329,8 @@ class World:
             pitch += self.rnd.uniform(-1, 1) * self.shake * 2.5
         light = self.party.light
         view = self.floor.view
+        if self.floor.d.lit:
+            light = 1.0
         view.dark = MAX_DARK if light <= 0 else round((1 - light) * 4)
         view.flicker_amount = 1.0 if light > 0 else 0.2
         view.update(p.eye, yaw, pitch, pyxel.frame_count)
@@ -406,7 +417,7 @@ class World:
             else:
                 lo, hi = TUNE["fist_min"], TUNE["fist_max"]
             amount = self.rnd.randint(lo, hi) + f.bonus("str", "str_per_damage", "fighter") + self.party.ward("fire")
-            if tired:
+            if tired or self.back is not None:
                 amount = max(1, amount // 2)
             self._damage_enemy(enemy, amount, p.x, p.z, f, "fighter")
 
@@ -462,6 +473,8 @@ class World:
         p.dip, self.shake = 0.0, 0.0
         self.party.restore(e["party"])
         self.hand = e["hand"] and e["hand"].copy()
+        self.back = e["back"] and e["back"].copy()
+        self.coins, self.quests = e["coins"], dict(e["quests"])
         self.arrived_on = e["arrived_on"]
         self.swing = 0
         self.popups.clear()
@@ -551,10 +564,11 @@ class World:
             if hit.kind == "enemy":
                 self.attack(hit.obj)
             elif hit.kind == "item" and near:
-                self.floor.remove_item(hit.obj)
-                self.hand = hit.obj.thing
-                self.sfx.play("pickup")
-                self.messages.add(f"You take {hit.obj.name}.")
+                self._take(hit.obj)
+            elif hit.kind == "floor" and near and self.back is not None:
+                self._set_down(hit.point)
+            elif hit.kind in ("board", "counter") and near:
+                self.screen = hit.kind
             elif hit.kind == "fountain" and near:
                 for m in self.party.members:
                     if m.up:
@@ -569,7 +583,9 @@ class World:
             elif hit.kind == "door" and near:
                 self._use_door(hit.obj)
             return
-        if hit.kind == "fountain" and near and self.hand.kind == "waterskin":
+        if hit.kind in ("board", "counter") and near:
+            self.screen = hit.kind
+        elif hit.kind == "fountain" and near and self.hand.kind == "waterskin":
             self.hand.charges = self.hand.row["charges"]
             self.sfx.play("drink")
             self.messages.add("You fill the waterskin.")
@@ -593,6 +609,38 @@ class World:
             self.hand = None
         else:
             self._throw(hit)
+
+    def _take(self, item):
+        thing = item.thing
+        if thing.row["heavy"]:
+            if self.back is not None:
+                self.messages.add(f"You already carry {self.back.name}.")
+                return
+            self.floor.remove_item(item)
+            self.back = thing
+            self.sfx.play("lift")
+            self.messages.add(f"You lift {thing.name} onto your back.")
+            return
+        self.floor.remove_item(item)
+        self.sfx.play("pickup")
+        for rid, req in REQUESTS.items():
+            if note_kind(rid) == thing.kind:  # a request found in the dungeon
+                if rid not in self.quests:
+                    self.quests[rid] = "accepted"
+                for line in textwrap.wrap(req["text"], 76)[:2]:
+                    self.messages.add(line)
+                self.messages.add(f"New request: {req['title']}.")
+                return
+        self.hand = thing
+        self.messages.add(f"You take {thing.name}.")
+
+    def _set_down(self, point):
+        item = Item(self.back, point.x, point.z, yaw=self.player.yaw + 90)
+        self.floor.add_item(item)
+        item.moving = self.floor.d.char(*item.cell) in "OX"
+        self.sfx.play("thud", 0.6)
+        self.messages.add(f"You set down {self.back.name}.")
+        self.back = None
 
     def _use_door(self, door):
         if door.lock is not None:
@@ -640,7 +688,8 @@ class World:
     def act(self):
         """Space: act on the target; with nothing to act on, swing at whatever is in front."""
         hit = self.target
-        idle = hit is None or hit.kind in ("wall", "none", "floor") or (hit.kind != "enemy" and hit.t > REACH)
+        idle = (hit is None or hit.kind in ("wall", "none") or (hit.kind == "floor" and self.back is None)
+                or (hit.kind != "enemy" and hit.t > REACH))
         if self.hand is None and idle:
             self.attack(self._enemy_in_front())
         elif hit is None:
@@ -659,6 +708,10 @@ class World:
         if self.hand is None:
             if hit.kind == "door" and (hit.obj.controlled or hit.obj.lock is not None):
                 return "try"
+            if hit.kind == "floor" and self.back is not None:
+                return "set down load"
+            if hit.kind == "item" and hit.obj.thing.row["heavy"]:
+                return "lift"
             return ACTIONS.get(hit.kind)
         if hit.kind == "floor":
             return "put down"
@@ -666,6 +719,8 @@ class World:
             return "use key"
         if hit.kind == "fountain" and self.hand.kind == "waterskin":
             return "fill"
+        if hit.kind in ("board", "counter"):
+            return ACTIONS[hit.kind]
         return "throw"
 
     def _ahead(self):
@@ -706,14 +761,15 @@ class World:
         for door in fl.doors.values():
             x, z = cell_center(door.cell)
             add("door", Vec3(x, 50, z), door, door.cell, REACH + 15)
-        for kind, walls, y in (("switch", fl.switches, 55), ("fountain", fl.fountains, 22)):
-            for wall in walls.values():
-                x, z = cell_center(wall.cell)
-                for _, side in wall.nodes:
-                    dx, dz = side[0] - wall.cell[0], side[1] - wall.cell[1]
-                    if (p.x - x) * dx + (p.z - z) * dz > CELL / 2:  # on this face's side
-                        add(kind, Vec3(x + dx * (CELL / 2 + 1), y, z + dz * (CELL / 2 + 1)), wall, wall.cell, REACH + 10)
-        if self.hand is not None:
+        walls = [("switch", sw, 55) for sw in fl.switches.values()]
+        walls += [(fx.kind, fx, 22 if fx.kind == "fountain" else 50) for fx in fl.fixtures.values()]
+        for kind, wall, y in walls:
+            x, z = cell_center(wall.cell)
+            for _, side in wall.nodes:
+                dx, dz = side[0] - wall.cell[0], side[1] - wall.cell[1]
+                if (p.x - x) * dx + (p.z - z) * dz > CELL / 2:  # on this face's side
+                    add(kind, Vec3(x + dx * (CELL / 2 + 1), y, z + dz * (CELL / 2 + 1)), wall, wall.cell, REACH + 10)
+        if self.hand is not None or self.back is not None:
             yr = math.radians(p.yaw)
             spot = Vec3(p.x + math.sin(yr) * 60, 0, p.z - math.cos(yr) * 60)
             if not fl.solid(*cell_of(spot.x, spot.z)):
@@ -837,8 +893,8 @@ class World:
                 y = o.y + d.y * t0
                 if sw is not None and 25 <= y <= 85:
                     return Hit("switch", t0, o + d * t0, sw, (gx, gz))
-                fountain = fl.fountains.get((gx, gz))
-                if fountain is not None and y <= 65:
-                    return Hit("fountain", t0, o + d * t0, fountain, (gx, gz))
+                fx = fl.fixtures.get((gx, gz))
+                if fx is not None and y <= (65 if fx.kind == "fountain" else 85):
+                    return Hit(fx.kind, t0, o + d * t0, fx, (gx, gz))
                 return Hit("wall", t0, o + d * t0, None, (gx, gz))
         return Hit("none", max_t)
