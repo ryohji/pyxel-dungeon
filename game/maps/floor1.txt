@@ -2,10 +2,10 @@
 ; #  wall  M  mossy wall  S  lever  F  fountain  .  floor  D  door  _  plate  O  pit  X / U  stairs down / up
 ##############################
 #U....############.....#######
-#.....############..X..#######
-#.....S###########.....#######
+#.....############..X..N######
+K.....S###########.....#######
 #..v..############.....#######
-#.....##############.#########
+#.....##############D#########
 ###D################.#########
 ###.###############S.#########
 ###.################D#########
@@ -40,3 +40,8 @@
 @item 17,10 ring
 @item 25,14 idol
 @item 20,4 note_lantern
+; the old kingdom
+@item 9,14 relic_shard
+@guardian 8,12 90
+@guardian 21,10 270
+@text 0,3 A worn relief: a hill with an eye in its side. Tiny figures kneel before it, and the hill is smiling.

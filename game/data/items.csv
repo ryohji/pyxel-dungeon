@@ -14,3 +14,8 @@ lantern,a brass lantern,,0,0,1,2,0,0,0,0,0,0
 note_lantern,a folded note,,0,0,0,0,0,0,0,0,0,0
 remains_brenn,the remains of Brenn,,0,0,0,0,0,0,0,0,0,1
 idol,a stone idol,,0,0,0,0,0,0,0,0,0,1
+relic_shard,a crown shard,,0,0,1,2,0,0,0,0,0,0
+relic_seal,a bronze seal,,0,0,1,2,0,0,0,0,0,0
+relic_tablet,a stone tablet,,0,0,1,2,0,0,0,0,0,1
+relic_chronicle,a chronicle page,,0,0,1,2,0,0,0,0,0,0
+relic_heart,the heart stone,,0,0,1,2,0,0,0,0,0,0

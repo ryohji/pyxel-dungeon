@@ -7,4 +7,6 @@
 #....^.....#
 ############
 @lit
+@npc 9,1 scholar 225
+@npc 2,4 keeper 45
 @below floor1

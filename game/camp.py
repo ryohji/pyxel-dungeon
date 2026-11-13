@@ -11,7 +11,7 @@ import textwrap
 import pyxel
 
 from palette import BLACK, FIRE_I, STONE_I, WHITE
-from tables import ITEMS, REQUESTS, SHOP
+from tables import ITEMS, RELICS, REQUESTS, SHOP
 from things import Thing
 
 X0, Y0, PW, PH = 6, 14, 308, 214
@@ -54,6 +54,22 @@ def deliver(world, rid):
     world.coins += req["reward"]
     world.sfx.play("coins")
     world.messages.add(f"{req['title']}: done. +{req['reward']} coins.")
+    return True
+
+
+def restore(world, kind):
+    """Give a relic to the scholar: the old kingdom's power comes back a little."""
+    found = locate(world, kind)
+    if found is None:
+        return False
+    thing = found[0]
+    found[1]()
+    world.messages.add(f"You give {thing.name} to Vesk.")
+    world.settle_relic(thing, "restore")
+    scholar = next((p for p in world.floor.people if p.name == "scholar"), None)
+    if scholar is not None:
+        world.talk(scholar)
+        world.screen = None
     return True
 
 
@@ -110,6 +126,13 @@ class CampScreen:
                 right = {"accepted": "taken", "done": "done"}.get(state, f"{req['reward']} coins")
                 out.append(Row(req["title"], right, (lambda w, rid=rid: accept(w, rid)) if state is None else None,
                                req["text"], enabled=state is None))
+        elif self.kind == "scholar":
+            out.append(Row("GIVE TO VESK, THE SCHOLAR", "", None, heading=True))
+            for kind, relic in RELICS.items():
+                found = locate(world, kind)
+                if found is not None:
+                    out.append(Row(f"Give {relic['name']}", "restore", lambda w, k=kind: restore(w, k),
+                                   "Vesk will bring its power back. The dungeon will change at once."))
         else:
             out.append(Row("HAND OVER", "", None, heading=True))
             for rid, state in world.quests.items():
@@ -174,7 +197,7 @@ class CampScreen:
         pyxel.rect(X0, Y0, PW, PH, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(X0, Y0, PW, PH, STONE_I[4])
-        title = "THE REQUEST BOARD" if self.kind == "board" else "THE CAMP COUNTER"
+        title = {"board": "THE REQUEST BOARD", "counter": "THE CAMP COUNTER", "scholar": "VESK'S TABLE"}[self.kind]
         pyxel.text(X0 + 8, Y0 + 7, title, FIRE_I[5])
         coins = f"Coins: {world.coins}"
         pyxel.text(X0 + PW - 8 - len(coins) * 4, Y0 + 7, coins, FIRE_I[4])

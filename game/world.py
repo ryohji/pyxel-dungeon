@@ -9,14 +9,14 @@ import pyxel
 from pyxel.cube import Vec3
 
 from dungeon import CELL, WALL_H, Dungeon
-from enemies import Skeleton, line_of_sight
-from objects import (ITEM_RADIUS, Board, Counter, Door, Fountain, Item, Plate, StairsNode, Switch, cell_center,
-                     cell_of, open_sides)
+from enemies import Guardian, Skeleton, line_of_sight
+from objects import (DOOR_LIFT, ITEM_RADIUS, Board, Carving, Counter, Door, Fountain, Item, Niche, Person, Plate, StairsNode,
+                     Switch, cell_center, cell_of, facing_yaw, open_sides)
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
 import spells
-from tables import REQUESTS, TUNE, note_kind
+from tables import LINES, RELICS, REQUESTS, TUNE, note_kind
 from textures import tile_image
 from view import MAX_DARK, DungeonView
 
@@ -27,12 +27,13 @@ THROW_SPEED = 7.5
 FALL_FRAMES = 18  # fade out and in when changing floors
 STAIRS_HOLD = 46  # frames of darkness while walking the stairs (the steps keep walking pace)
 WIPE_FRAMES = 90  # darkness after the party falls, before trying the floor again
-ENEMY_KINDS = {"skeleton": Skeleton}
+ENEMY_KINDS = {"skeleton": Skeleton, "guardian": Guardian}
 ENEMY_PICK_RADIUS = 26.0
 TARGET_RANGE = 7 * CELL  # Tab reaches enemies this far away
 ACTIONS = {"item": "take", "switch": "pull", "door": "open / close", "enemy": "attack", "fountain": "drink",
-           "board": "read", "counter": "trade"}
-FIXTURES = {"F": Fountain, "B": Board, "C": Counter}
+           "board": "read", "counter": "trade", "carving": "read", "niche": "look", "person": "talk"}
+FIXTURES = {"F": Fountain, "B": Board, "C": Counter, "K": Carving, "N": Niche}
+PERSON_PICK_RADIUS = 22.0
 
 
 class Hit:
@@ -45,13 +46,19 @@ class Hit:
 
 
 class Floor:
-    def __init__(self, name, atlas, door_image, peaceful=False):
+    def __init__(self, name, atlas, door_image, peaceful=False, restored=0, buried=()):
+        """restored: how many relics went to the scholar; buried: (relic, floor name) laid in niches."""
         self.name = name
         self.d = Dungeon.load(os.path.join(HERE, "maps", f"{name}.txt"), name)
         d = self.d
         self.doors = {c: Door(c, d.door_axis(*c), d.locks.get(c), door_image) for c in d.cells_of("D")}
         self.switches = {c: Switch(c, open_sides(d, c)) for c in d.cells_of("S")}
         self.fixtures = {c: FIXTURES[d.char(*c)](c, open_sides(d, c)) for c in d.cells_of("".join(FIXTURES))}
+        for c, text in d.texts.items():
+            self.fixtures[c].text = text
+        for fx in self.fixtures.values():
+            if fx.kind == "niche":
+                fx.contents = [kind for kind, where in buried if where == name]
         self.plates = {c: Plate(c) for c in d.cells_of("_")}
         for src, tgt, mode in d.links:
             source = self.switches.get(src) or self.plates.get(src)
@@ -59,7 +66,8 @@ class Floor:
             if source is None or door is None:
                 raise ValueError(f"{name}: bad link {src} -> {tgt}")
             source.targets.append((door, mode))
-            door.controlled = True
+            if mode != "unlock":  # once unlocked, a door opens and shuts by hand
+                door.controlled = True
 
         self.view = DungeonView(d, atlas, blocks_sight=self.blocks_sight)
         for door in self.doors.values():
@@ -81,12 +89,47 @@ class Floor:
             self.add_item(Item(kind, x + rnd.uniform(-20, 20), z + rnd.uniform(-20, 20), yaw=rnd.uniform(0, 360)))
         self.enemies = []
         for cell, kind, yaw in ([] if peaceful else d.enemies):
-            enemy = ENEMY_KINDS[kind](*cell_center(cell), yaw)
-            self.enemies.append(enemy)
-            self.view.attach(enemy.node, enemy.cell)
+            self._add_enemy(ENEMY_KINDS[kind](*cell_center(cell), yaw))
+        self.woken = 0  # guardians woken by restored relics
         self.bolts = []
+        if not peaceful:
+            for _ in range(restored):
+                self.wake_guardian()
+            for _ in buried:
+                self.crumble_one(at_once=True)
+        self.people = []
+        for cell, who, _ in d.npcs:
+            x, z = cell_center(cell)
+            sx, sz = cell_center(d.start[:2]) if d.start else (x, z + 1)
+            person = Person(who, cell, facing_yaw(sx - x, sz - z))
+            self.people.append(person)
+            self.view.attach(person.node, cell)
         self.fields = {}  # cell -> spells.Field (walls of fire, ice, light, life)
         self.effects = []  # short-lived sights such as bursts
+
+    def _add_enemy(self, enemy):
+        self.enemies.append(enemy)
+        self.view.attach(enemy.node, enemy.cell)
+
+    def wake_guardian(self):
+        """A restored relic wakes the next stone guardian on this floor, if any are left."""
+        if self.woken >= len(self.d.guardians):
+            return None
+        cell, yaw = self.d.guardians[self.woken]
+        self.woken += 1
+        guardian = Guardian(*cell_center(cell), yaw)
+        self._add_enemy(guardian)
+        return guardian
+
+    def crumble_one(self, at_once=False):
+        """A buried relic: one of the risen dead on this floor falls apart for good."""
+        for e in self.enemies:
+            if e.alive and getattr(e, "UNDEAD", False):
+                e.hp = 0
+                e._set("dead" if at_once else "dying")
+                e.node.refresh()
+                return e
+        return None
 
     def add_field(self, field):
         old = self.fields.pop(field.cell, None)
@@ -151,8 +194,9 @@ class Floor:
                 self.emit("plate_down" if pressed else "plate_up", cell_center(plate.cell))
                 if pressed:
                     messages.add("Click.")
+        standing = {e.cell for e in self.enemies if e.alive}
         for door in self.doors.values():
-            sound = door.update(door.cell == player_cell or door.cell in resting)
+            sound = door.update(door.cell == player_cell or door.cell in resting or door.cell in standing)
             if sound:
                 self.emit(sound, cell_center(door.cell))
         fallen = []
@@ -237,13 +281,19 @@ class World:
         self.door_image = tile_image(atlas, "door")
         self.w, self.h = w, h
         self.floors = {}
+        self.journal = []  # every page read so far, to read again (J); kept through a wipe
+        self.relic_log = []  # (relic kind, 'restore' or 'bury', floor name) in the order they were settled
         self.floor = self.get_floor(start)
         self.player = Player(self.floor.d.start, self.floor.solid)
         self.hand = None  # the Thing held in the cursor, or None
         self.back = None  # a heavy Thing Arn carries on his back, or None
         self.coins = TUNE["coins_start"]
         self.quests = {}  # request id -> 'accepted' or 'done'
-        self.screen = None  # 'board' / 'counter' when a camp screen should open
+        self.screen = None  # 'board' / 'counter' / 'scholar' when a camp screen should open
+        self.pages = []  # (title, text) to read, picked up by the app
+        self.heard = {}  # person -> how many entries of relic_log they have spoken about
+        self.seen = set()  # relics whose lore has been read
+        self.ending = None
         self.messages = Messages()
         self.explored = {}  # floor name -> set of cells
         self.arrived_on = None  # stairs cell we arrived on; ignored until we step off
@@ -266,8 +316,64 @@ class World:
 
     def get_floor(self, name):
         if name not in self.floors:
-            self.floors[name] = Floor(name, self.atlas, self.door_image, self.peaceful)
+            self.floors[name] = Floor(name, self.atlas, self.door_image, self.peaceful,
+                                      len(self.restored), self.buried)
         return self.floors[name]
+
+    # ------------------------------------------------------------ the old kingdom
+    @property
+    def restored(self):
+        return [k for k, how, _ in self.relic_log if how == "restore"]
+
+    @property
+    def buried(self):
+        return [(k, where) for k, how, where in self.relic_log if how == "bury"]
+
+    def read(self, title, text):
+        self.pages.append((title, text))
+        if (title, text) not in self.journal:
+            self.journal.append((title, text))
+
+    def settle_relic(self, thing, how):
+        """A relic restored (given to the scholar) or buried (laid in a niche): the dungeon changes at once."""
+        self.relic_log.append((thing.kind, how, self.floor.name))
+        woke = []
+        for fl in self.floors.values():
+            if self.peaceful:
+                continue
+            if how == "restore":
+                if fl.wake_guardian() is not None:
+                    woke.append(fl.name.replace("floor", "floor "))
+            else:
+                e = fl.crumble_one()
+                if e is not None and fl is self.floor:
+                    fl.emit("collapse", (e.x, e.z), 0.7)
+        self.messages.add(LINES[how][:76])
+        if woke:
+            self.messages.add(f"A stone guardian wakes on {', '.join(woke)}.")
+        self.sfx.play("flash" if how == "restore" else "freeze")
+        if len(self.relic_log) == len(RELICS) and self.ending is None:
+            self.ending = "restore" if len(self.restored) > len(self.buried) else "bury"
+            self.read("THE END" if self.ending == "bury" else "THE HILL WAKES", LINES["end_" + self.ending])
+
+    def talk(self, person):
+        """What someone at the camp has to say: an introduction, then their word on each relic settled."""
+        who = person.name
+        if who not in self.heard:
+            self.read(person.title.upper(), LINES[who + "_intro"])
+            self.heard[who] = 0
+        new = self.relic_log[self.heard[who]:]
+        for kind, how, _ in new:
+            self.read(person.title.upper(), RELICS[kind][f"{who}_{how}"])
+        self.heard[who] = len(self.relic_log)
+        if not new and who in self.heard and not self.pages:
+            self.read(person.title.upper(), LINES[who + "_intro"])
+        if who == "scholar" and any(self.carried(kind) for kind in RELICS):
+            self.screen = "scholar"
+
+    def carried(self, kind):
+        from camp import locate
+        return locate(self, kind) is not None
 
     def _remember_entry(self):
         """What to go back to if the party falls on this floor."""
@@ -275,6 +381,7 @@ class World:
         self.entry = dict(floor=self.floor.name, x=p.x, z=p.z, yaw=p.yaw,
                           party=self.party.snapshot(), hand=self.hand and self.hand.copy(),
                           back=self.back and self.back.copy(), coins=self.coins, quests=dict(self.quests),
+                          relic_log=list(self.relic_log), heard=dict(self.heard), seen=set(self.seen),
                           arrived_on=self.arrived_on)
 
     # ------------------------------------------------------------ frame
@@ -330,8 +437,10 @@ class World:
         light = self.party.light
         view = self.floor.view
         if self.floor.d.lit:
-            light = 1.0
-        view.dark = MAX_DARK if light <= 0 else round((1 - light) * 4)
+            view.dark = 0
+        else:
+            gloom = len(self.buried) - len(self.restored)  # buried relics deepen the dark, restored ones relight old lamps
+            view.dark = max(-2, (MAX_DARK if light <= 0 else round((1 - light) * 4)) + gloom)
         view.flicker_amount = 1.0 if light > 0 else 0.2
         view.update(p.eye, yaw, pitch, pyxel.frame_count)
         self.explored.setdefault(self.floor.name, set()).update(self.floor.view.shown)
@@ -375,10 +484,10 @@ class World:
             self.party.companion(self, fl)
 
     def _keep_apart(self):
-        """Bodies do not overlap: push the player out of living enemies."""
+        """Bodies do not overlap: push the player out of living enemies and people."""
         p = self.player
-        for e in self.floor.enemies:
-            if not e.alive:
+        for e in (*self.floor.enemies, *self.floor.people):
+            if not getattr(e, "alive", True):
                 continue
             dx, dz = p.x - e.x, p.z - e.z
             d = math.hypot(dx, dz)
@@ -465,6 +574,7 @@ class World:
     def _restart_floor(self):
         """Back to the moment the party entered this floor, with the floor as it was then."""
         e = self.entry
+        self.relic_log = list(e["relic_log"])  # before the floor is rebuilt: it depends on the relics settled
         self.floors.pop(e["floor"], None)
         self.floor = self.get_floor(e["floor"])
         p = self.player
@@ -475,6 +585,7 @@ class World:
         self.hand = e["hand"] and e["hand"].copy()
         self.back = e["back"] and e["back"].copy()
         self.coins, self.quests = e["coins"], dict(e["quests"])
+        self.relic_log, self.heard, self.seen = list(e["relic_log"]), dict(e["heard"]), set(e["seen"])
         self.arrived_on = e["arrived_on"]
         self.swing = 0
         self.popups.clear()
@@ -538,6 +649,9 @@ class World:
                 p.x, p.z = cx, cz
                 self.arrived_on = p.cell
             self.messages.add(message)
+            awake = sum(e.alive and isinstance(e, Guardian) for e in self.floor.enemies)
+            if awake:
+                self.messages.add(f"Stone guardians walk this floor ({awake}). M shows where.")
             self._remember_entry()
         elif frame >= FALL_FRAMES * 2 + self._travel_hold():
             self.travel = None
@@ -569,6 +683,10 @@ class World:
                 self._set_down(hit.point)
             elif hit.kind in ("board", "counter") and near:
                 self.screen = hit.kind
+            elif hit.kind in ("carving", "niche") and near:
+                self._use_fixture(hit)
+            elif hit.kind == "person" and near:
+                self.talk(hit.obj)
             elif hit.kind == "fountain" and near:
                 for m in self.party.members:
                     if m.up:
@@ -585,6 +703,10 @@ class World:
             return
         if hit.kind in ("board", "counter") and near:
             self.screen = hit.kind
+        elif hit.kind in ("carving", "niche") and near:
+            self._use_fixture(hit)
+        elif hit.kind == "person" and near:
+            self.talk(hit.obj)
         elif hit.kind == "fountain" and near and self.hand.kind == "waterskin":
             self.hand.charges = self.hand.row["charges"]
             self.sfx.play("drink")
@@ -620,19 +742,48 @@ class World:
             self.back = thing
             self.sfx.play("lift")
             self.messages.add(f"You lift {thing.name} onto your back.")
+            self._lore(thing)
             return
         self.floor.remove_item(item)
         self.sfx.play("pickup")
+        self._lore(thing)
         for rid, req in REQUESTS.items():
             if note_kind(rid) == thing.kind:  # a request found in the dungeon
                 if rid not in self.quests:
                     self.quests[rid] = "accepted"
+                if (req["title"].upper(), req["text"]) not in self.journal:
+                    self.journal.append((req["title"].upper(), req["text"]))
                 for line in textwrap.wrap(req["text"], 76)[:2]:
                     self.messages.add(line)
                 self.messages.add(f"New request: {req['title']}.")
                 return
         self.hand = thing
         self.messages.add(f"You take {thing.name}.")
+
+    def _lore(self, thing):
+        """The first time a relic is picked up, read what it tells of the old kingdom."""
+        if thing.kind in RELICS and thing.kind not in self.seen:
+            self.seen.add(thing.kind)
+            self.read(thing.name.upper(), RELICS[thing.kind]["text"])
+
+    def _use_fixture(self, hit):
+        fx = hit.obj
+        if fx.kind == "carving":
+            self.read("A CARVING", fx.text)
+        elif fx.kind == "niche":
+            relic = self.hand if self.hand is not None and self.hand.kind in RELICS else None
+            if relic is None and self.back is not None and self.back.kind in RELICS:
+                relic = self.back
+            if relic is None:
+                self.read("A SEALED NICHE", LINES["niche"])
+                return
+            if relic is self.hand:
+                self.hand = None
+            else:
+                self.back = None
+            fx.contents.append(relic.kind)
+            self.messages.add(f"You lay {relic.name} in the niche.")
+            self.settle_relic(relic, "bury")
 
     def _set_down(self, point):
         item = Item(self.back, point.x, point.z, yaw=self.player.yaw + 90)
@@ -646,7 +797,7 @@ class World:
         if door.lock is not None:
             self.messages.add("It is locked.")
         elif door.controlled:
-            self.messages.add("It won't budge.")
+            self.messages.add("It won't budge. A lever or a plate must work it.")
         else:
             door.target_open = not door.target_open
 
@@ -708,10 +859,14 @@ class World:
         if self.hand is None:
             if hit.kind == "door" and (hit.obj.controlled or hit.obj.lock is not None):
                 return "try"
+            if hit.kind == "door":
+                return "close" if hit.obj.target_open else "open"
             if hit.kind == "floor" and self.back is not None:
                 return "set down load"
             if hit.kind == "item" and hit.obj.thing.row["heavy"]:
                 return "lift"
+            if hit.kind == "niche" and self.back is not None and self.back.kind in RELICS:
+                return "lay to rest"
             return ACTIONS.get(hit.kind)
         if hit.kind == "floor":
             return "put down"
@@ -719,8 +874,10 @@ class World:
             return "use key"
         if hit.kind == "fountain" and self.hand.kind == "waterskin":
             return "fill"
-        if hit.kind in ("board", "counter"):
+        if hit.kind in ("board", "counter", "carving", "person"):
             return ACTIONS[hit.kind]
+        if hit.kind == "niche":
+            return "lay to rest" if self.hand.kind in RELICS else "look"
         return "throw"
 
     def _ahead(self):
@@ -763,6 +920,8 @@ class World:
             add("door", Vec3(x, 50, z), door, door.cell, REACH + 15)
         walls = [("switch", sw, 55) for sw in fl.switches.values()]
         walls += [(fx.kind, fx, 22 if fx.kind == "fountain" else 50) for fx in fl.fixtures.values()]
+        for person in fl.people:
+            add("person", person.center, person, person.cell, REACH + 30)
         for kind, wall, y in walls:
             x, z = cell_center(wall.cell)
             for _, side in wall.nodes:
@@ -839,6 +998,14 @@ class World:
             t = -b - math.sqrt(disc)
             if 0 < t < hit.t:
                 hit = Hit("item", t, o + d * t, it, it.cell)
+        for person in self.floor.people:
+            for cy in (25, 55):
+                oc = o - Vec3(person.x, cy, person.z)
+                b = oc.dot(d)
+                disc = b * b - (oc.dot(oc) - PERSON_PICK_RADIUS * PERSON_PICK_RADIUS)
+                if disc >= 0 and 0 < -b - math.sqrt(disc) < hit.t:
+                    t = -b - math.sqrt(disc)
+                    hit = Hit("person", t, o + d * t, person, person.cell)
         for e in self.floor.enemies:
             if not e.alive:
                 continue
@@ -868,10 +1035,10 @@ class World:
         while t0 < max_t:
             t1 = min(tx, tz)
             door = fl.doors.get((gx, gz))
-            if door is not None and door.open < 0.97:
+            if door is not None:
                 cx, cz = cell_center((gx, gz))
                 t = ((cz - o.z) / d.z if d.z else inf) if door.axis == "x" else ((cx - o.x) / d.x if d.x else inf)
-                if t0 <= t <= t1 and door.open * WALL_H <= o.y + d.y * t <= WALL_H:
+                if t0 <= t <= t1 and door.open * WALL_H * DOOR_LIFT <= o.y + d.y * t <= WALL_H:
                     return Hit("door", t, o + d * t, door, (gx, gz))
             ch = fl.d.char(gx, gz)
             if d.y < 0:

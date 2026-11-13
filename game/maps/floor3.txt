@@ -1,0 +1,33 @@
+; Floor 3 - the hall of the king under the hill
+##############################
+#######.......K.........######
+#######.#..#.......#..#.######
+#######.................######
+#######.#..#.......#..#.N#####
+#######.................######
+##################D###########
+##################.###########
+#......###########.###########
+K......D...........S##########
+#......###########.###########
+#......##########.....########
+#################.....F#######
+#################.....########
+#################..U..########
+##############################
+@above floor2
+; the lever in the corridor opens the great hall
+@link 19,9 18,6 toggle
+@item 2,10 relic_chronicle
+@item 14,2 relic_heart
+@item 18,13 torch
+@item 20,11 bread
+@enemy 4,9 skeleton 90
+@enemy 3,11 skeleton 0
+@enemy 12,9 skeleton 270
+@enemy 16,3 guardian 180
+@guardian 10,3 180
+@guardian 20,3 180
+@guardian 18,8 180
+@text 14,1 Here sits the King Under the Hill. The hill is his throne, and his servant, and his grave.
+@text 0,9 The river people came with fire. The King spoke, and the ground opened, and the river ran the other way.

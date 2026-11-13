@@ -21,6 +21,7 @@ HELP = [
     ("1 2 3 4", "runes: power, then element, then shape"),
     ("Enter", "cast them (Backspace takes one back)"),
     ("I", "inventory: equip, eat, drink (pauses)"),
+    ("J", "journal: read lore, carvings, notes again"),
     ("M  F", "map, debug info"),
     ("H", "open / close this help"),
 ]

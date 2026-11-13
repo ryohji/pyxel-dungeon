@@ -2,10 +2,11 @@
 
 import math
 
+import pyxel
 from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL, SIDES, WALL_H
-from palette import BLUE_I, EARTH_I, FIRE_I, RED, STONE_I, WHITE
+from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, RED, STONE_I, WHITE
 from things import Thing
 
 DOOR_SPEED = 1 / 30  # fraction per frame
@@ -30,6 +31,9 @@ def facing_yaw(nx, nz):
 
 
 # ---------------------------------------------------------------- doors
+DOOR_LIFT = 0.8  # an open door's panel hangs this far up, its lower edge still in sight
+
+
 class Door:
     def __init__(self, cell, axis, lock, image):
         self.cell = cell
@@ -76,12 +80,12 @@ class DoorNode(Node):
         self.refresh()
 
     def refresh(self):
-        lift = self.door.open * WALL_H * 0.96
+        lift = self.door.open * WALL_H * DOOR_LIFT
         self.transform = self.base * Mat4.from_translation(Vec3(0, WALL_H / 2 + lift, 0))
 
     def on_draw(self):
+        self.box(Mat4.IDENTITY, self.size, self.image)
         if self.door.open < 0.97:
-            self.box(Mat4.IDENTITY, self.size, self.image)
             if self.door.lock is not None:  # brass lock plate on both faces
                 lock = Vec3(10, 14, 12) if self.door.axis == "x" else Vec3(12, 14, 10)
                 self.box(Mat4.from_translation(Vec3(0, -6, 0)), lock, FIRE_I[2])
@@ -231,6 +235,117 @@ class Counter(Fixture):
 
     def make_node(self):
         return CounterNode()
+
+
+class Carving(Fixture):
+    """Words and a relief cut into the wall: the old kingdom speaking."""
+
+    KIND = "carving"
+    text = ""
+
+    def make_node(self):
+        return CarvingNode()
+
+
+class Niche(Fixture):
+    """A sealed niche: relics laid here are buried for good."""
+
+    KIND = "niche"
+
+    def __init__(self, cell, open_sides):
+        self.contents = []
+        super().__init__(cell, open_sides)
+
+    def make_node(self):
+        return NicheNode(self)
+
+
+class CarvingNode(Node):
+    def on_draw(self):
+        self.box(Mat4.from_translation(Vec3(0, 55, 1)), Vec3(60, 60, 2), STONE_I[2])  # the panel
+        self.box(Mat4.from_translation(Vec3(0, 55, 2)), Vec3(54, 54, 1), STONE_I[4])
+        # a hill with an eye in its side
+        for i, w in enumerate((44, 34, 24, 14)):
+            self.box(Mat4.from_translation(Vec3(0, 34 + i * 8, 3)), Vec3(w, 8, 1.5), STONE_I[5])
+        self.box(Mat4.from_translation(Vec3(0, 44, 4)), Vec3(12, 6, 1), STONE_I[1])
+        self.box(Mat4.from_translation(Vec3(0, 44, 4.5)), Vec3(4, 4, 1), STONE_I[6])
+        for x in (-18, -10, 10, 18):  # kneeling figures
+            self.box(Mat4.from_translation(Vec3(x, 31, 4)), Vec3(4, 6, 1), STONE_I[6])
+        for y in (72, 76, 80):  # a line of old letters
+            self.box(Mat4.from_translation(Vec3(0, y, 3)), Vec3(44, 1.5, 1), STONE_I[1])
+
+
+class NicheNode(Node):
+    def __init__(self, niche):
+        super().__init__()
+        self.niche = niche
+
+    def on_draw(self):
+        self.box(Mat4.from_translation(Vec3(0, 52, 1)), Vec3(44, 56, 2), STONE_I[5])  # frame
+        self.box(Mat4.from_translation(Vec3(0, 50, 2)), Vec3(32, 44, 1), BLACK)  # the dark inside
+        self.box(Mat4.from_translation(Vec3(0, 76, 2)), Vec3(26, 6, 1.5), STONE_I[6])  # lintel
+        for x in (-12, 12):  # wax seals
+            self.box(Mat4.from_translation(Vec3(x, 30, 3)), Vec3(5, 5, 1), RED)
+        if self.niche.contents:  # what was laid here glints faintly
+            self.shaded(False)
+            for i in range(len(self.niche.contents)):
+                self.box(Mat4.from_translation(Vec3(-8 + i * 8, 34, 2.5)), Vec3(4, 3, 1), FIRE_I[3])
+            self.shaded(True)
+
+
+# ---------------------------------------------------------------- people
+PERSON_COLORS = {"scholar": (BLUE_I[1], BLUE_I[2], EARTH_I[6]), "keeper": (STONE_I[2], STONE_I[1], EARTH_I[5])}
+PERSON_NAMES = {"scholar": "Vesk, the scholar", "keeper": "the gravekeeper"}
+
+
+class Person:
+    """Someone at the camp to talk to."""
+
+    RADIUS = 20.0
+
+    def __init__(self, name, cell, yaw):
+        self.name = name
+        self.x, self.z = cell_center(cell)
+        self.yaw = yaw
+        self.node = PersonNode(self)
+
+    @property
+    def cell(self):
+        return cell_of(self.x, self.z)
+
+    @property
+    def center(self):
+        return Vec3(self.x, 45, self.z)
+
+    @property
+    def title(self):
+        return PERSON_NAMES.get(self.name, self.name)
+
+
+class PersonNode(Node):
+    def __init__(self, person):
+        super().__init__()
+        self.person = person
+        self.transform = Mat4.from_translation(Vec3(person.x, 0, person.z)) * yaw_matrix(person.yaw)
+        self.t = 0
+
+    def on_update(self):
+        self.t += 1
+
+    def on_draw(self):
+        robe, trim, skin = PERSON_COLORS.get(self.person.name, (STONE_I[3], STONE_I[2], EARTH_I[5]))
+        breathe = math.sin(self.t * 0.05) * 0.8
+        self.box(Mat4.from_translation(Vec3(0, 20, 0)), Vec3(26, 40, 18), robe)  # robe
+        self.box(Mat4.from_translation(Vec3(0, 50 + breathe / 2, 0)), Vec3(22, 22, 14), robe)  # chest
+        self.box(Mat4.from_translation(Vec3(0, 40, 0)), Vec3(27, 3, 19), trim)  # belt
+        for side in (1, -1):
+            self.box(Mat4.from_translation(Vec3(side * 14, 46, 2)), Vec3(6, 22, 7), robe)  # sleeves
+            self.box(Mat4.from_translation(Vec3(side * 14, 34, 3)), Vec3(5, 5, 5), skin)
+        self.box(Mat4.from_translation(Vec3(0, 68 + breathe, 0)), Vec3(12, 13, 12), skin)  # head
+        self.box(Mat4.from_translation(Vec3(0, 74 + breathe, -1)), Vec3(15, 7, 15), trim)  # hood
+        self.box(Mat4.from_translation(Vec3(0, 66 + breathe, -3)), Vec3(15, 12, 10), trim)
+        for side in (1, -1):
+            self.box(Mat4.from_translation(Vec3(side * 3, 69 + breathe, 6)), Vec3(2, 2, 1), BLACK)
 
 
 class BoardNode(Node):
@@ -384,6 +499,30 @@ class ItemNode(Node):
             b(_at(0, 42, 0), Vec3(14, 12, 12), STONE_I[6])
             b(_at(4, 43, 6.5), Vec3(3, 3, 1), FIRE_I[4])
             b(_at(-4, 43, 6.5), Vec3(3, 3, 1), FIRE_I[4])
+        elif kind == "relic_shard":
+            b(_at(0, 3, 0, 20), Vec3(18, 6, 4), FIRE_I[4])
+            for dx in (-6, 0, 6):
+                b(_at(dx, 8, 0, 20), Vec3(3, 6, 3), FIRE_I[5])
+            b(_at(0, 4, 2.5, 20), Vec3(3, 3, 1), BLUE_I[2])
+        elif kind == "relic_seal":
+            b(_at(0, 2, 0), Vec3(14, 4, 14), FIRE_I[2])
+            b(_at(0, 2, 0, 45), Vec3(14, 3.5, 14), FIRE_I[2])
+            b(_at(0, 9, 0), Vec3(5, 10, 5), FIRE_I[3])
+        elif kind == "relic_tablet":
+            b(_at(0, 4, 0), Vec3(34, 8, 46), STONE_I[4])
+            for dz in (-12, -4, 4, 12):
+                b(_at(0, 8.2, dz), Vec3(24, 0.5, 2), STONE_I[2])
+        elif kind == "relic_chronicle":
+            b(_at(0, 1, 0, 8), Vec3(18, 2, 24), EARTH_I[6])
+            for dz in (-6, -2, 2, 6):
+                b(_at(1, 2.2, dz, 8), Vec3(12, 0.5, 1), EARTH_I[2])
+        elif kind == "relic_heart":  # it beats, faintly lit from within
+            self.shaded(False)
+            pulse = 1 + 0.15 * max(0.0, math.sin(pyxel.frame_count * 0.12)) ** 8
+            b(_at(0, 8, 0), Vec3(13 * pulse, 13 * pulse, 13 * pulse), FIRE_I[1])
+            b(_at(0, 8, 0, 45), Vec3(9 * pulse, 15 * pulse, 9 * pulse), FIRE_I[2])
+            b(_at(0, 9, 4), Vec3(4, 4, 6), FIRE_I[4])
+            self.shaded(True)
         else:
             b(_at(0, 5, 0), Vec3(10, 10, 10), 30)
 

@@ -6,6 +6,8 @@ import pyxel
 
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, STONE_I
 
+RED_DARK = FIRE_I[1]
+
 TEX = 32
 TILES = ("wall", "floor", "ceiling", "wall_moss", "door", "shaft")
 TILE_INDEX = {name: i for i, name in enumerate(TILES)}
@@ -76,7 +78,8 @@ def make_atlas():
 
 ICON = 16
 ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin",
-         "ring", "lantern", "note", "remains", "idol")
+         "ring", "lantern", "note", "remains", "idol",
+         "relic_shard", "relic_seal", "relic_tablet", "relic_chronicle", "relic_heart")
 
 
 def make_icons():
@@ -180,6 +183,41 @@ def make_icons():
     img.rect(o + 5, 1, 6, 5, S[6])
     img.pset(o + 6, 3, FIRE_I[4])
     img.pset(o + 9, 3, FIRE_I[4])
+
+    o = at("relic_shard")  # a piece of a gold crown
+    img.tri(o + 2, 12, o + 13, 12, o + 4, 4, FIRE_I[4])
+    img.tri(o + 4, 4, o + 13, 12, o + 10, 2, FIRE_I[3])
+    img.rect(o + 3, 11, 10, 2, FIRE_I[2])
+    img.pset(o + 7, 7, BLUE_I[2])
+    img.pset(o + 10, 4, FIRE_I[5])
+
+    o = at("relic_seal")  # bronze, a hill with an eye
+    img.circ(o + 8, 9, 5, FIRE_I[2])
+    img.circb(o + 8, 9, 5, FIRE_I[3])
+    img.tri(o + 4, 12, o + 12, 12, o + 8, 6, FIRE_I[3])
+    img.pset(o + 8, 10, BLACK)
+    img.rect(o + 7, 1, 3, 4, FIRE_I[2])
+
+    o = at("relic_tablet")
+    img.rect(o + 3, 1, 10, 14, S[4])
+    img.rectb(o + 3, 1, 10, 14, S[2])
+    for y in (4, 7, 10):
+        img.line(o + 5, y, o + 10, y, S[2])
+    img.line(o + 5, 12, o + 10, 12, S[1])
+
+    o = at("relic_chronicle")
+    img.rect(o + 2, 3, 12, 11, E[6])
+    img.rect(o + 2, 3, 2, 11, E[4])
+    for y in (5, 7, 9, 11):
+        img.line(o + 6, y, o + 12, y, E[2])
+    img.pset(o + 13, 13, E[3])
+
+    o = at("relic_heart")
+    img.circ(o + 6, 6, 3, RED_DARK)
+    img.circ(o + 10, 6, 3, RED_DARK)
+    img.tri(o + 3, 8, o + 13, 8, o + 8, 14, RED_DARK)
+    img.circ(o + 6, 6, 1, FIRE_I[4])
+    img.pset(o + 7, 9, FIRE_I[5])
     return img
 
 

@@ -8,7 +8,7 @@ from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL
 from objects import cell_of, facing_yaw
-from palette import EARTH_I, FIRE_I, STONE_I, WHITE
+from palette import BLUE_I, EARTH_I, FIRE_I, STONE_I, WHITE
 from player import move_circle
 
 SIGHT = 650.0  # how far an enemy notices the party (6.5 m)
@@ -61,6 +61,7 @@ class Skeleton:
     RECOVER = 30
     DAMAGE = (3, 6)
     UNDEAD = True  # light hurts it twice as much
+    STAGGER = 5  # a blow this heavy breaks off its swing
 
     def __init__(self, x, z, yaw=0.0):
         self.x, self.z, self.yaw = x, z, yaw
@@ -109,7 +110,7 @@ class Skeleton:
             return True
         if self.state == "idle":
             self._set("chase")
-        elif self.state == "attack" and self.t < self.WINDUP and damage >= 5:
+        elif self.state == "attack" and self.t < self.WINDUP and damage >= self.STAGGER:
             self._set("chase")  # a heavy blow staggers the swing
             self.cooldown = 30
         return False
@@ -341,3 +342,36 @@ class SkeletonNode(Node):
                 hand = fore * _t(0, -15, 0) * _swing(75)
                 self.box(hand, Vec3(6, 2, 2), self._col(self.HILT))
                 self.box(hand * _t(0, -15, 0), Vec3(1.5, 28, 4.5), self._col(self.BLADE))
+
+
+# ---------------------------------------------------------------- guardians
+class Guardian(Skeleton):
+    """A stone guardian of the old kingdom: slow, tough, hits hard. Wakes as relics are restored."""
+
+    NAME = "stone guardian"
+    MAX_HP = 40
+    RADIUS = 26.0
+    CHASE = 1.35
+    REACH = 96.0
+    HIT_RANGE = 115.0
+    WINDUP = 38
+    DAMAGE = (6, 10)
+    UNDEAD = False
+    STAGGER = 9
+
+    def __init__(self, x, z, yaw=0.0):
+        super().__init__(x, z, yaw)
+        self.node = GuardianNode(self)
+
+
+class GuardianNode(SkeletonNode):
+    BONE = STONE_I[4]
+    BONE_DARK = STONE_I[3]
+    BLADE = STONE_I[6]
+    HILT = STONE_I[2]
+    EYES = BLUE_I[2]
+    SCALE = 1.35
+
+    def refresh(self):
+        e = self.e
+        self.transform = _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0)) * Mat4.from_scale(Vec3(self.SCALE, self.SCALE, self.SCALE))

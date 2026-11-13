@@ -25,10 +25,12 @@ import pyxel
 
 from camp import CampScreen
 from dungeon import CELL
+from enemies import Guardian
 from help import HINT, Help
 from ime import LatinInput
 from inventory import Inventory
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, PALETTE, RED, STONE_I, WHITE
+from reading import Journal, Reader
 from runes import RunePanel, draw_glyph
 from sound import Sfx
 from textures import ICON, draw_icon, make_atlas, make_icons
@@ -59,6 +61,8 @@ class App:
         self.inventory = Inventory(self.icons)
         self.runes = RunePanel(H)
         self.camp = CampScreen()
+        self.reader = Reader()
+        self.journal = Journal()
         self.last_mouse = None
         self.show_map = False
         self.show_debug = False
@@ -87,11 +91,18 @@ class App:
         moved = self.last_mouse is not None and (mx, my) != self.last_mouse
         self.last_mouse = (mx, my)
         tab, space = pyxel.btnp(pyxel.KEY_TAB), pyxel.btnp(pyxel.KEY_SPACE)
+        if self.reader.open:  # paused while reading
+            self.reader.update(clicked)
+            return
+        if self.journal.open:  # paused while reading the journal again
+            self.journal.update(self.world.journal, mx, clicked)
+            return
         if self.camp.open:  # paused at the board or the counter
             if pyxel.btnp(pyxel.KEY_ESCAPE):
                 self.camp.close()
             else:
                 self.camp.update(self.world, mx, my, clicked, space, tab, moved)
+                self.take_pages()
             return
         if self.inventory.open:  # paused while sorting belongings
             if pyxel.btnp(pyxel.KEY_I) or pyxel.btnp(pyxel.KEY_ESCAPE):
@@ -103,6 +114,9 @@ class App:
             self.show_map = False
         if pyxel.btnp(pyxel.KEY_M):
             self.show_map = not self.show_map
+        if pyxel.btnp(pyxel.KEY_J):
+            self.journal.show(self.world.journal)
+            return
         if pyxel.btnp(pyxel.KEY_F):
             self.show_debug = not self.show_debug
         if pyxel.btnp(pyxel.KEY_I) or (clicked and self.panel_at(mx, my) is not None):
@@ -111,10 +125,17 @@ class App:
         if self.runes.update(self.world, mx, my, clicked):
             clicked = False  # the click was on the rune panel, not the dungeon
         self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
-        if self.world.screen is not None:
-            self.camp.show(self.world.screen)
-            self.world.screen = None
+        self.take_pages()
         self.update_ms = (time.perf_counter() - t0) * 1000
+
+    def take_pages(self):
+        """Open whatever the world wants shown: pages to read first, then a camp screen."""
+        w = self.world
+        while w.pages:
+            self.reader.show(*w.pages.pop(0))
+        if w.screen is not None:
+            self.camp.show(w.screen)
+            w.screen = None
 
     # ------------------------------------------------------------ draw
     def draw(self):
@@ -145,7 +166,7 @@ class App:
         if self.show_map:
             self.draw_map()
         self.draw_load()
-        if self.world.mode == "keys" and not self.inventory.open and not self.camp.open:
+        if self.world.mode == "keys" and not (self.inventory.open or self.camp.open or self.reader.open or self.journal.open):
             self.draw_target()
         if self.show_debug:
             p = w.player
@@ -158,6 +179,10 @@ class App:
             self.inventory.draw(w, pyxel.mouse_x, pyxel.mouse_y)
         if self.camp.open:
             self.camp.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        if self.reader.open:
+            self.reader.draw(H)
+        if self.journal.open:
+            self.journal.draw(self.world.journal, H)
         if self.help.open:
             self.help.draw(W, H)
             pyxel.mouse(True)
@@ -313,7 +338,7 @@ class App:
         if w.mode == "keys":
             pyxel.mouse(False)  # the keyboard has the target; moving the mouse takes it back
             return
-        hint = None if self.inventory.open or self.camp.open else w.action_name(w.hover)
+        hint = None if self.inventory.open or self.camp.open or self.reader.open or self.journal.open else w.action_name(w.hover)
         if w.hand is None:
             pyxel.mouse(True)
         else:
@@ -337,6 +362,10 @@ class App:
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 if d.is_wall(gx + dx, gy + dy):
                     pyxel.rect(ox + (gx + dx) * s, oy + (gy + dy) * s, s, s, STONE_I[6])
+        for e in w.floor.enemies:  # stone guardians are felt through the rock, seen or not
+            if e.alive and isinstance(e, Guardian):
+                gx, gy = e.cell
+                pyxel.rectb(ox + gx * s - 1, oy + gy * s - 1, s + 2, s + 2, BLUE_I[2])
         p = w.player
         px = ox + p.x / CELL * s
         pz = oy + p.z / CELL * s
