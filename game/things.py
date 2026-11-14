@@ -1,5 +1,6 @@
 """Item instances: a kind (a row of data/items.csv) plus its own state."""
 
+from lang import loc, tr
 from tables import ITEMS, TUNE
 
 
@@ -17,10 +18,10 @@ class Thing:
     @property
     def name(self):
         if self.kind == "torch" and self.fuel <= 0:
-            return "a burnt-out torch"
+            return tr("a burnt-out torch")
         if self.kind == "waterskin" and self.charges <= 0:
-            return "an empty waterskin"
-        return self.row["name"]
+            return tr("an empty waterskin")
+        return loc(self.row, "name")
 
     def fits(self, slot):
         """Can this go in an equipment slot (right, left, head, body) or the pack?"""

@@ -22,3 +22,13 @@ Textures, item icons and 3D shapes are generated at run time by the source
 code and are covered by the MIT License together with it. The sound effect
 files are produced by tools/make_sfx.py (MIT); the generated .wav files
 themselves are covered by this license.
+
+Third-party font
+
+  game/assets/umplus_j10r.bdf   Japanese bitmap font (umplus gothic 10 px),
+                                copied from Pyxel's examples (pyxel/examples/assets).
+                                Built from the M+ BITMAP FONTS, Copyright (C) 2002-2004 COZ.
+                                The M+ fonts are free software: unlimited permission is
+                                granted to use, copy and distribute them, with or without
+                                modification, commercially or not. They are provided
+                                "as is", without warranty.

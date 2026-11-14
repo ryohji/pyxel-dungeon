@@ -16,6 +16,9 @@ from textures import make_atlas
 from things import Thing
 from world import World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE
@@ -95,7 +98,7 @@ world.floor = world.get_floor("camp")
 scholar = next(pp for pp in world.floor.people if pp.name == "scholar")
 world.hand = Thing("relic_seal")
 world.talk(scholar)
-check(world.pages[0][1] == LINES["scholar_intro"], "Vesk introduces himself")
+check(world.pages[0][1] == LINES["scholar_intro"]["text"], "Vesk introduces himself")
 check(any(RELICS["relic_shard"]["scholar_bury"] == t for _, t in world.pages), "and grumbles about the buried shard")
 check(world.screen == "scholar", "carrying a relic opens his table")
 world.pages.clear()
@@ -124,7 +127,7 @@ check(len(world.relic_log) == 2, "a restart forgets relics settled since enterin
 keeper = next(pp for pp in world.get_floor("camp").people if pp.name == "keeper")
 world.pages.clear()
 world.talk(keeper)
-check(world.pages[0][1] == LINES["keeper_intro"] and len(world.pages) == 3, "the gravekeeper speaks of both relics")
+check(world.pages[0][1] == LINES["keeper_intro"]["text"] and len(world.pages) == 3, "the gravekeeper speaks of both relics")
 world.pages.clear()
 world.floor = world.floors["floor1"]
 world.back = Thing("relic_tablet")
@@ -140,6 +143,6 @@ world.floor = world.floors["camp"]
 world.hand = Thing("relic_heart")
 world.pages.clear()
 restore(world, "relic_heart")
-check(world.ending == "bury" and any(t == LINES["end_bury"] for _, t in world.pages), "three buried to two: the hill sleeps")
+check(world.ending == "bury" and any(t == LINES["end_bury"]["text"] for _, t in world.pages), "three buried to two: the hill sleeps")
 
 print("all checks passed")

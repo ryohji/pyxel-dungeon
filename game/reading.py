@@ -5,9 +5,10 @@ read so far again, one at a time: left/right or a click on either half
 turns the page, J or Esc closes it.
 """
 
-import textwrap
-
 import pyxel
+
+import lang
+from lang import tr
 
 from palette import BLACK, FIRE_I, STONE_I, WHITE
 
@@ -32,7 +33,7 @@ class Reader:
 
     def draw(self, h):
         more = " (more)" if len(self.pages) > 1 else ""
-        draw_page(*self.pages[0], h, "J: read again later   Space or click" + more)
+        draw_page(*self.pages[0], h, tr("J: read again later   Space or click") + tr(more))
 
 
 class Journal:
@@ -58,26 +59,27 @@ class Journal:
 
     def draw(self, entries, h):
         if not entries:
-            draw_page("JOURNAL", "Nothing written yet. Relic lore, carvings, notes and what people say are kept here.",
-                      h, "J/Esc: close")
+            draw_page(tr("JOURNAL"), tr("Nothing written yet. Relic lore, carvings, notes and what people say are kept here."),
+                      h, tr("J/Esc: close"))
             return
         title, text = entries[self.i]
-        draw_page(title, text, h, f"{self.i + 1}/{len(entries)}  <- ->: turn  J/Esc: close")
+        draw_page(title, text, h, f"{self.i + 1}/{len(entries)}  " + tr("<- ->: turn  J/Esc: close"))
 
 
 def draw_page(title, text, h, foot):
     lines = []
     for para in text.split("\\n"):
-        lines += textwrap.wrap(para, WRAP) or [""]
-    bh = 30 + len(lines) * 9 + 14
+        lines += lang.wrap(para, W_ - 16)
+    step = lang.line(9)
+    bh = 30 + len(lines) * step + 16
     y0 = max(8, (h - 30 - bh) // 2)
-    pyxel.dither(0.92)
+    pyxel.dither(1.0)  # solid: Japanese letters need a calm background
     pyxel.rect(X0, y0, W_, bh, BLACK)
     pyxel.dither(1.0)
     pyxel.rectb(X0, y0, W_, bh, FIRE_I[2])
-    pyxel.text(X0 + 8, y0 + 7, title, FIRE_I[5])
+    lang.text(X0 + 8, y0 + 7, title, FIRE_I[5])
     y = y0 + 22
     for line in lines:
-        pyxel.text(X0 + 8, y, line, WHITE)
-        y += 9
-    pyxel.text(X0 + W_ - 8 - len(foot) * 4, y0 + bh - 10, foot, STONE_I[5])
+        lang.text(X0 + 8, y, line, WHITE)
+        y += step
+    lang.text(X0 + W_ - 8 - lang.width(foot), y0 + bh - 12, foot, STONE_I[5])

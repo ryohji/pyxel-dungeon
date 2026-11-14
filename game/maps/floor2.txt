@@ -29,3 +29,4 @@
 @guardian 22,11 270
 @guardian 20,5 180
 @text 15,11 Every law of the kingdom is the King's word. Every word of the King is the hill's will.
+@text_ja 15,11 王国の法はすべて王の言葉である。王の言葉はすべて丘の意思である。

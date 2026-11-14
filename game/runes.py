@@ -8,6 +8,8 @@ running while you choose.
 
 import pyxel
 
+import lang
+from lang import tr
 from palette import BLACK, BLUE_I, FIRE_I, MOSS_I, STONE_I, WHITE
 from spells import ROW_NAMES, ROWS, SPELLS, describe
 
@@ -103,7 +105,7 @@ class RunePanel:
 
     def cast(self, world):
         if len(self.runes) < 3:
-            world.messages.add(f"Choose a {ROW_NAMES[len(self.runes)]} rune first.")
+            world.messages.add(tr("Choose a " + ROW_NAMES[len(self.runes)] + " rune first."))
             return
         result = world.cast(tuple(self.runes))
         if result != "wait":
@@ -123,8 +125,8 @@ class RunePanel:
             text = f"{name}  {cost} MP"
         else:
             col = STONE_I[5]
-            text = f"{ROW_NAMES[len(self.runes)]} rune: 1-4"
-        pyxel.text(X + 3, y + 3, text, col)
+            text = tr(ROW_NAMES[len(self.runes)] + " rune: 1-4")
+        lang.text(X + 3, y + 3, text, col)
         mp = f"{int(caster.mana)}/{caster.max_mana}"
         pyxel.text(X + W_ - 3 - len(mp) * 4, y + 3, mp, BLUE_I[2])
         for i in range(3):
@@ -142,4 +144,5 @@ class RunePanel:
                 pyxel.text(x + 4, by + 3, "<", STONE_I[6])
             else:
                 ok = len(self.runes) == 3 and ready
-                pyxel.text(x + 12, by + 3, "CAST", FIRE_I[5] if ok else STONE_I[4])
+                label = tr("CAST")
+                lang.text(x + (w - lang.width(label)) // 2, by + 3, label, FIRE_I[5] if ok else STONE_I[4])

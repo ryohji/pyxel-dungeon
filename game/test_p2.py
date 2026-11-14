@@ -12,6 +12,9 @@ from sound import NullSfx
 from textures import make_atlas
 from world import World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE

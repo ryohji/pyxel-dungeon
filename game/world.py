@@ -3,7 +3,6 @@
 import math
 import os
 import random
-import textwrap
 
 import pyxel
 from pyxel.cube import Vec3
@@ -16,7 +15,9 @@ from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
 import spells
-from tables import LINES, RELICS, REQUESTS, TUNE, note_kind
+import lang
+from lang import loc, tr
+from tables import RELICS, REQUESTS, TUNE, note_kind, story as loc_line
 from textures import tile_image
 from view import MAX_DARK, DungeonView
 
@@ -56,6 +57,8 @@ class Floor:
         self.fixtures = {c: FIXTURES[d.char(*c)](c, open_sides(d, c)) for c in d.cells_of("".join(FIXTURES))}
         for c, text in d.texts.items():
             self.fixtures[c].text = text
+        for c, text in d.texts_ja.items():
+            self.fixtures[c].text_ja = text
         for fx in self.fixtures.values():
             if fx.kind == "niche":
                 fx.contents = [kind for kind, where in buried if where == name]
@@ -193,7 +196,7 @@ class Floor:
             if plate.set_pressed(pressed):
                 self.emit("plate_down" if pressed else "plate_up", cell_center(plate.cell))
                 if pressed:
-                    messages.add("Click.")
+                    messages.add(tr("Click."))
         standing = {e.cell for e in self.enemies if e.alive}
         for door in self.doors.values():
             sound = door.update(door.cell == player_cell or door.cell in resting or door.cell in standing)
@@ -300,6 +303,10 @@ class World:
         self.travel = None  # [frame, target floor, message, how]
         self.hover = None
         self.shake = 0.0  # screen shake strength, decays every frame
+        self.no_harm = False  # development switch: the party takes no blows
+        self.hitstop = 0  # frames the action stands still after a blow (hit stop)
+        self.held = [False, False, False]  # click, Space, Tab pressed during a hit stop
+        self.flash = 0  # frames of the light/dark flash when an enemy is destroyed or a member falls
         self.last_step = 0
         self.rnd = random.Random()
         self.swing = 0  # frames left of the sword-swing overlay
@@ -343,31 +350,31 @@ class World:
                 continue
             if how == "restore":
                 if fl.wake_guardian() is not None:
-                    woke.append(fl.name.replace("floor", "floor "))
+                    woke.append(tr("floor {n}", n=fl.name[5:]))
             else:
                 e = fl.crumble_one()
                 if e is not None and fl is self.floor:
                     fl.emit("collapse", (e.x, e.z), 0.7)
-        self.messages.add(LINES[how][:76])
+        self.messages.add(tr("A relic restored: lamps relight below.") if how == "restore" else tr("A relic laid to rest: the dark deepens below."))
         if woke:
-            self.messages.add(f"A stone guardian wakes on {', '.join(woke)}.")
+            self.messages.add(tr("A stone guardian wakes on {floors}.", floors=", ".join(woke)))
         self.sfx.play("flash" if how == "restore" else "freeze")
         if len(self.relic_log) == len(RELICS) and self.ending is None:
             self.ending = "restore" if len(self.restored) > len(self.buried) else "bury"
-            self.read("THE END" if self.ending == "bury" else "THE HILL WAKES", LINES["end_" + self.ending])
+            self.read(tr("THE END") if self.ending == "bury" else tr("THE HILL WAKES"), loc_line("end_" + self.ending))
 
     def talk(self, person):
         """What someone at the camp has to say: an introduction, then their word on each relic settled."""
         who = person.name
         if who not in self.heard:
-            self.read(person.title.upper(), LINES[who + "_intro"])
+            self.read(person.title.upper(), loc_line(who + "_intro"))
             self.heard[who] = 0
         new = self.relic_log[self.heard[who]:]
         for kind, how, _ in new:
-            self.read(person.title.upper(), RELICS[kind][f"{who}_{how}"])
+            self.read(person.title.upper(), loc(RELICS[kind], f"{who}_{how}"))
         self.heard[who] = len(self.relic_log)
         if not new and who in self.heard and not self.pages:
-            self.read(person.title.upper(), LINES[who + "_intro"])
+            self.read(person.title.upper(), loc_line(who + "_intro"))
         if who == "scholar" and any(self.carried(kind) for kind in RELICS):
             self.screen = "scholar"
 
@@ -387,6 +394,19 @@ class World:
     # ------------------------------------------------------------ frame
     def update(self, mx, my, clicked, attack_key=False, tab=False, mouse_moved=False):
         """One frame. attack_key: Space (act on the target); tab: pick the next target."""
+        if self.hitstop > 0:  # the action stands still for a moment after a blow; input waits
+            self.hitstop -= 1
+            self.flash = max(0, self.flash - 1)
+            self.held = [h or n for h, n in zip(self.held, (clicked, attack_key, tab))]
+            for e in self.floor.enemies:
+                if e.jolt > 0:
+                    e.jolt -= 1
+                    e.node.refresh()
+            return
+        if any(self.held):
+            clicked, attack_key, tab = (h or n for h, n in zip(self.held, (clicked, attack_key, tab)))
+            self.held = [False, False, False]
+        self.flash = max(0, self.flash - 1)
         self.party.tick()
         self.party.needs(self.messages)
         self.swing = max(0, self.swing - 1)
@@ -532,19 +552,30 @@ class World:
 
     def _damage_enemy(self, enemy, amount, from_x, from_z, by=None, skill=None):
         killed = enemy.hurt(amount, from_x, from_z)
+        stop = min(TUNE["hitstop_max"], TUNE["hitstop_base"] + amount * TUNE["hitstop_per_damage"])
+        if killed:
+            stop += TUNE["hitstop_kill"]
+            self.flash = 6
+        self.stop(stop)
+        enemy.jolt = max(enemy.jolt, int(stop))
+        if by is self.party.fighter:
+            self.shake = max(self.shake, 0.08)  # the striker shakes a little, the struck a lot
         self.sfx.play("hit_bone", 1.0, math.hypot(enemy.x - self.player.x, enemy.z - self.player.z))
         self._popup(enemy.center + Vec3(0, 25, 0), str(amount), 1)
         if killed:
-            self.messages.add(f"The {enemy.NAME} falls apart.")
+            self.messages.add(tr("The {name} falls apart.", name=enemy.called))
         if by is not None:
             self.award(by, skill, amount * TUNE["xp_hit"] + (TUNE["xp_kill"] if killed else 0))
+
+    def stop(self, frames):
+        self.hitstop = max(self.hitstop, int(frames))
 
     def award(self, member, skill, xp):
         """Experience for a skill; announce any level reached."""
         if xp <= 0:
             return
         for lv in member.gain_xp(skill, xp):
-            self.messages.add(f"{member.name} is now a level {lv} {skill}!")
+            self.messages.add(tr("{name} is now a level {lv} {skill}!", name=member.called, lv=lv, skill=tr(skill)))
             self.sfx.play("levelup")
 
     def _popup(self, pos, text, kind):
@@ -553,16 +584,21 @@ class World:
     def hit_party(self, amount, enemy):
         """An enemy's blow lands on the front member."""
         m = self.party.front()
+        if self.no_harm:  # development switch (F6 in debug mode)
+            self.sfx.play("hurt")
+            return
         m.damage(max(1, amount - m.defense - self.party.ward("frost")))
         self.sfx.play("hurt")
         self.shake = max(self.shake, 0.35)
         self.hurt_flash = 8
         if not m.up:
-            self.messages.add(f"{m.name} falls!")
+            self.messages.add(tr("{name} falls!", name=m.called))
+            self.stop(TUNE["hitstop_fall"])
+            self.flash = 6
         if not self.party.alive:
             self.wipe = 0
             self.sfx.play("defeat")
-            self.messages.add("The party has fallen...")
+            self.messages.add(tr("The party has fallen..."))
 
     def _update_wipe(self):
         self.wipe += 1
@@ -589,7 +625,7 @@ class World:
         self.arrived_on = e["arrived_on"]
         self.swing = 0
         self.popups.clear()
-        self.messages.add("You wake at the floor's entrance.")
+        self.messages.add(tr("You wake at the floor's entrance."))
 
     def _footsteps(self):
         step = int(self.player.bob / math.pi)
@@ -648,10 +684,10 @@ class World:
             else:
                 p.x, p.z = cx, cz
                 self.arrived_on = p.cell
-            self.messages.add(message)
+            self.messages.add(tr(message))
             awake = sum(e.alive and isinstance(e, Guardian) for e in self.floor.enemies)
             if awake:
-                self.messages.add(f"Stone guardians walk this floor ({awake}). M shows where.")
+                self.messages.add(tr("Stone guardians walk this floor ({n}). M shows where.", n=awake))
             self._remember_entry()
         elif frame >= FALL_FRAMES * 2 + self._travel_hold():
             self.travel = None
@@ -693,11 +729,11 @@ class World:
                         m.water = 100.0
                         m.warned.discard("thirsty")
                 self.sfx.play("drink")
-                self.messages.add("You drink the cold water.")
+                self.messages.add(tr("You drink the cold water."))
             elif hit.kind == "switch" and near:
                 hit.obj.toggle()
                 self.sfx.play("lever")
-                self.messages.add("You pull the lever.")
+                self.messages.add(tr("You pull the lever."))
             elif hit.kind == "door" and near:
                 self._use_door(hit.obj)
             return
@@ -710,16 +746,16 @@ class World:
         elif hit.kind == "fountain" and near and self.hand.kind == "waterskin":
             self.hand.charges = self.hand.row["charges"]
             self.sfx.play("drink")
-            self.messages.add("You fill the waterskin.")
+            self.messages.add(tr("You fill the waterskin."))
         elif hit.kind == "door" and near and hit.obj.lock is not None:
             if hit.obj.lock == self.hand.kind:
                 hit.obj.lock = None
                 hit.obj.target_open = True
                 self.hand = None
                 self.sfx.play("unlock")
-                self.messages.add("The key turns. The door opens.")
+                self.messages.add(tr("The key turns. The door opens."))
             else:
-                self.messages.add("It doesn't fit.")
+                self.messages.add(tr("It doesn't fit."))
         elif hit.kind == "floor" and near:
             p = hit.point
             item = Item(self.hand, p.x, p.z, yaw=random.uniform(0, 360))
@@ -727,7 +763,7 @@ class World:
             item.moving = self.floor.d.char(*item.cell) in "OX"  # dropped into a hole: let it fall
             if not item.moving:
                 self.sfx.play("thud", 0.35)
-            self.messages.add(f"You put down {item.name}.")
+            self.messages.add(tr("You put down {name}.", name=item.name))
             self.hand = None
         else:
             self._throw(hit)
@@ -736,12 +772,12 @@ class World:
         thing = item.thing
         if thing.row["heavy"]:
             if self.back is not None:
-                self.messages.add(f"You already carry {self.back.name}.")
+                self.messages.add(tr("You already carry {name}.", name=self.back.name))
                 return
             self.floor.remove_item(item)
             self.back = thing
             self.sfx.play("lift")
-            self.messages.add(f"You lift {thing.name} onto your back.")
+            self.messages.add(tr("You lift {name} onto your back.", name=thing.name))
             self._lore(thing)
             return
         self.floor.remove_item(item)
@@ -751,38 +787,38 @@ class World:
             if note_kind(rid) == thing.kind:  # a request found in the dungeon
                 if rid not in self.quests:
                     self.quests[rid] = "accepted"
-                if (req["title"].upper(), req["text"]) not in self.journal:
-                    self.journal.append((req["title"].upper(), req["text"]))
-                for line in textwrap.wrap(req["text"], 76)[:2]:
-                    self.messages.add(line)
-                self.messages.add(f"New request: {req['title']}.")
+                page = (loc(req, "title").upper(), loc(req, "text"))
+                if page not in self.journal:
+                    self.journal.append(page)
+                self.messages.add(loc(req, "text"))
+                self.messages.add(tr("New request: {title}.", title=loc(req, "title")))
                 return
         self.hand = thing
-        self.messages.add(f"You take {thing.name}.")
+        self.messages.add(tr("You take {name}.", name=thing.name))
 
     def _lore(self, thing):
         """The first time a relic is picked up, read what it tells of the old kingdom."""
         if thing.kind in RELICS and thing.kind not in self.seen:
             self.seen.add(thing.kind)
-            self.read(thing.name.upper(), RELICS[thing.kind]["text"])
+            self.read(thing.name.upper(), loc(RELICS[thing.kind], "text"))
 
     def _use_fixture(self, hit):
         fx = hit.obj
         if fx.kind == "carving":
-            self.read("A CARVING", fx.text)
+            self.read(tr("A CARVING"), fx.text_ja if lang.ja() and fx.text_ja else fx.text)
         elif fx.kind == "niche":
             relic = self.hand if self.hand is not None and self.hand.kind in RELICS else None
             if relic is None and self.back is not None and self.back.kind in RELICS:
                 relic = self.back
             if relic is None:
-                self.read("A SEALED NICHE", LINES["niche"])
+                self.read(tr("A SEALED NICHE"), loc_line("niche"))
                 return
             if relic is self.hand:
                 self.hand = None
             else:
                 self.back = None
             fx.contents.append(relic.kind)
-            self.messages.add(f"You lay {relic.name} in the niche.")
+            self.messages.add(tr("You lay {name} in the niche.", name=relic.name))
             self.settle_relic(relic, "bury")
 
     def _set_down(self, point):
@@ -790,14 +826,14 @@ class World:
         self.floor.add_item(item)
         item.moving = self.floor.d.char(*item.cell) in "OX"
         self.sfx.play("thud", 0.6)
-        self.messages.add(f"You set down {self.back.name}.")
+        self.messages.add(tr("You set down {name}.", name=self.back.name))
         self.back = None
 
     def _use_door(self, door):
         if door.lock is not None:
-            self.messages.add("It is locked.")
+            self.messages.add(tr("It is locked."))
         elif door.controlled:
-            self.messages.add("It won't budge. A lever or a plate must work it.")
+            self.messages.add(tr("It won't budge. A lever or a plate must work it."))
         else:
             door.target_open = not door.target_open
 
@@ -811,7 +847,7 @@ class World:
         item.moving = True
         self.floor.add_item(item)
         self.sfx.play("throw")
-        self.messages.add(f"You throw {item.name}.")
+        self.messages.add(tr("You throw {name}.", name=item.name))
         self.hand = None
 
     # ------------------------------------------------------------ magic

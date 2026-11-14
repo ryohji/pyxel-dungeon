@@ -23,6 +23,7 @@ mechanisms (coordinates are gx,gy):
   @below FLOOR / @above FLOOR     floors reached by pits, X and U
   @lit                            always bright (no torch needed)
   @text X,Y WORDS...              what the carving at X,Y says
+  @text_ja X,Y WORDS...           the same in Japanese
   @guardian X,Y [YAW]             a stone guardian that wakes when a relic is restored
   @npc X,Y NAME [YAW]             someone standing at the camp (scholar, keeper)
 """
@@ -57,6 +58,7 @@ class Dungeon:
         self.below = self.above = None
         self.lit = False
         self.texts = {}  # carving cell -> words
+        self.texts_ja = {}  # carving cell -> the words in Japanese
         self.guardians = []  # (cell, yaw) in the order they wake
         self.npcs = []  # (cell, name, yaw)
         rows = []
@@ -99,6 +101,8 @@ class Dungeon:
             self.lit = True
         elif cmd == "text":
             self.texts[_xy(args[0])] = " ".join(args[1:])
+        elif cmd == "text_ja":
+            self.texts_ja[_xy(args[0])] = " ".join(args[1:])
         elif cmd == "guardian":
             self.guardians.append((_xy(args[0]), float(args[1]) if len(args) > 1 else 0.0))
         elif cmd == "npc":

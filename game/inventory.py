@@ -7,6 +7,8 @@ waterskin on the mouth slot eats or drinks it.
 
 import pyxel
 
+import lang
+from lang import tr
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, RED, STONE_I, WHITE
 from party import PACK_SIZE, SLOTS
 from tables import SKILLS, TUNE
@@ -15,7 +17,7 @@ from textures import ICON, draw_icon
 X0, Y0, PW, PH = 6, 14, 308, 214
 COL_W = 152
 BOX = ICON + 2
-SLOT_LABEL = {"right": "RIGHT", "left": "LEFT", "head": "HEAD", "body": "BODY", "mouth": "EAT"}
+SLOT_LABEL = {"right": "RIGHT", "left": "LEFT", "head": "HEAD", "body": "BODY", "mouth": "EAT"}  # shown through tr()
 FOOTER = "I/Esc: close  Tab: next slot  Space/click: take, put, eat"
 
 
@@ -85,25 +87,25 @@ class Inventory:
         m = slot.member
         hand = world.hand
         if not m.up:
-            world.messages.add(f"{m.name} is down.")
+            world.messages.add(tr("{name} is down.", name=m.called))
             return
         if slot.area == "mouth":
             if hand is None:
-                world.messages.add("Hold food or drink over the mouth.")
+                world.messages.add(tr("Hold food or drink over the mouth."))
                 return
             result = m.consume(hand)
             if result is None:
-                world.messages.add("That is not something to eat.")
+                world.messages.add(tr("That is not something to eat."))
                 return
             text, used_up = result
             world.messages.add(text)
-            if text != "It is empty.":
+            if text != tr("It is empty."):
                 world.sfx.play("eat" if hand.row["food"] else "drink")
             if used_up:
                 world.hand = None
             return
         if hand is not None and not hand.fits(slot.key if slot.area == "equip" else "pack"):
-            world.messages.add(f"{hand.name.capitalize()} does not go there.")
+            world.messages.add(tr("{name} does not go there.", name=hand.name[:1].upper() + hand.name[1:]))
             return
         if hand is None and slot.thing is None:
             return
@@ -113,7 +115,7 @@ class Inventory:
 
     # ------------------------------------------------------------ draw
     def draw(self, world, mx, my):
-        pyxel.dither(0.9)
+        pyxel.dither(1.0)  # solid: Japanese letters need a calm background
         pyxel.rect(X0, Y0, PW, PH, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(X0, Y0, PW, PH, STONE_I[4])
@@ -127,18 +129,18 @@ class Inventory:
         info = None
         if chosen is not None:
             thing = chosen.thing
-            info = describe(thing) if thing is not None else SLOT_LABEL.get(chosen.key if chosen.area == "equip" else chosen.area, "")
+            info = describe(thing) if thing is not None else tr(SLOT_LABEL.get(chosen.key if chosen.area == "equip" else chosen.area, ""))
         if world.hand is not None:
-            info = "In hand: " + describe(world.hand)
+            info = tr("In hand: ") + describe(world.hand)
             if world.mode == "keys" and chosen is not None:
                 draw_icon(self.icons, world.hand, chosen.x + 8, chosen.y - 8)
         if info:
-            pyxel.text(X0 + 6, Y0 + PH - 22, info, FIRE_I[5])
-        load = f"On Arn's back: {world.back.name}" if world.back is not None else ""
-        coins = f"Coins: {world.coins}"
-        pyxel.text(X0 + 6, Y0 + PH - 32, load, STONE_I[6])
-        pyxel.text(X0 + PW - 6 - len(coins) * 4, Y0 + PH - 32, coins, FIRE_I[4])
-        pyxel.text(X0 + 6, Y0 + PH - 10, FOOTER, STONE_I[5])
+            lang.text(X0 + 6, Y0 + PH - 25, info, FIRE_I[5])
+        load = tr("On Arn's back: {name}", name=world.back.name) if world.back is not None else ""
+        coins = tr("Coins: {n}", n=world.coins)
+        lang.text(X0 + 6, Y0 + PH - 36, load, STONE_I[6])
+        lang.text(X0 + PW - 6 - lang.width(coins), Y0 + PH - 36, coins, FIRE_I[4])
+        lang.text(X0 + 6, Y0 + PH - 12, tr(FOOTER), STONE_I[5])
 
     def _member(self, m, x, y):
         pyxel.text(x, y, f"{m.name}", WHITE if m.up else STONE_I[4])
@@ -167,7 +169,7 @@ class Inventory:
                 done = (m.xp[s] - nxt[0]) / max(1, nxt[1] - nxt[0])
                 pyxel.rect(sx + 44, sy + 2, 20, 1, STONE_I[2])
                 pyxel.rect(sx + 44, sy + 2, round(20 * min(1, done)), 1, FIRE_I[3])
-        pyxel.text(x, y + 126, "PACK", STONE_I[5])
+        lang.text(x, y + 126, tr("PACK"), STONE_I[5])
 
     def _slot(self, s, chosen):
         pyxel.rect(s.x, s.y, BOX, BOX, STONE_I[1])
@@ -179,8 +181,8 @@ class Inventory:
         if thing is not None:
             draw_icon(self.icons, thing, s.x + 1, s.y + 1)
         if s.area != "pack":
-            label = SLOT_LABEL[s.key if s.area == "equip" else "mouth"]
-            pyxel.text(s.x + BOX // 2 - len(label) * 2, s.y - 7, label, STONE_I[4])
+            label = tr(SLOT_LABEL[s.key if s.area == "equip" else "mouth"])
+            lang.text(s.x + BOX // 2 - lang.width(label) // 2, s.y - (9 if lang.wide(label) else 7), label, STONE_I[4])
 
 
 def next_xp(m, skill):
@@ -198,15 +200,15 @@ def describe(thing):
     r = thing.row
     parts = [thing.name]
     if r["damage_max"]:
-        parts.append(f"hits {r['damage_min']}-{r['damage_max']}")
+        parts.append(tr("hits {a}-{b}", a=r["damage_min"], b=r["damage_max"]))
     if r["throw_max"] >= 4:
-        parts.append(f"thrown {r['throw_min']}-{r['throw_max']}")
+        parts.append(tr("thrown {a}-{b}", a=r["throw_min"], b=r["throw_max"]))
     if r["defense"]:
-        parts.append(f"armor {r['defense']}")
+        parts.append(tr("armor {n}", n=r["defense"]))
     if r["food"]:
-        parts.append(f"food +{r['food']}")
+        parts.append(tr("food +{n}", n=r["food"]))
     if r["water"]:
-        parts.append(f"{thing.charges}/{r['charges']} drinks")
+        parts.append(tr("{a}/{b} drinks", a=thing.charges, b=r["charges"]))
     if thing.kind == "torch":
-        parts.append(f"{thing.fuel // 3600} min left" if thing.fuel > 0 else "")
-    return ", ".join(p for p in parts if p)
+        parts.append(tr("{n} min left", n=thing.fuel // 3600) if thing.fuel > 0 else "")
+    return tr(", ").join(p for p in parts if p)

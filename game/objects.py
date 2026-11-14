@@ -242,6 +242,7 @@ class Carving(Fixture):
 
     KIND = "carving"
     text = ""
+    text_ja = ""
 
     def make_node(self):
         return CarvingNode()
@@ -319,7 +320,8 @@ class Person:
 
     @property
     def title(self):
-        return PERSON_NAMES.get(self.name, self.name)
+        from lang import tr
+        return tr(PERSON_NAMES.get(self.name, self.name))
 
 
 class PersonNode(Node):

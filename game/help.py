@@ -1,6 +1,8 @@
-"""The in-game help screen, drawn with Pyxel's built-in font."""
+"""The in-game help screen, in English (Pyxel's built-in font) or Japanese (the M+ font)."""
 
 import pyxel
+
+import lang
 
 from palette import BLACK, FIRE_I, STONE_I, WHITE
 
@@ -22,6 +24,7 @@ HELP = [
     ("Enter", "cast them (Backspace takes one back)"),
     ("I", "inventory: equip, eat, drink (pauses)"),
     ("J", "journal: read lore, carvings, notes again"),
+    ("L", "language: Japanese / English"),
     ("M  F", "map, debug info"),
     ("H", "open / close this help"),
 ]
@@ -32,6 +35,28 @@ NOTES = [
     "Turn off Japanese / IME input to play.",
 ]
 FOOTER = "H, Esc or click to close"
+
+TITLE_JA = "操作"
+HELP_JA = [
+    ("W A S D", "移動（Shift を押しながらで走る）"),
+    ("Q E / ← →", "向きを変える（↑↓ で上下、R で水平）"),
+    ("右ドラッグ", "見回す"),
+    ("左クリック", "指した物に働きかける（攻撃、拾う、"),
+    ("", "レバー、扉、水を飲む）。物を持っていれば、"),
+    ("", "床に置く・鍵を使う・水袋を満たす・投げる"),
+    ("Tab / Space", "対象を選ぶ / 対象に働きかける"),
+    ("1 2 3 4", "ルーン（強さ→属性→形の順）"),
+    ("Enter", "唱える（Backspace で 1 つ戻す）"),
+    ("I", "持ち物（装備、食べる、飲む。一時停止）"),
+    ("J", "覚え書き（読んだ物をもう一度読む）"),
+    ("L  M  F", "言語の切り替え、地図、開発用の表示"),
+    ("H", "このヘルプを開く / 閉じる"),
+]
+NOTES_JA = [
+    "掲示板で依頼を受け、持ち帰って受付に渡す。",
+    "食べて、飲んで、松明を絶やさないこと。",
+]
+FOOTER_JA = "H、Esc、クリックで閉じる"
 HINT = "H: help"
 
 
@@ -40,20 +65,24 @@ class Help:
         self.open = False
 
     def draw(self, w, h):
-        x0, y0, bw = 10, 14, w - 20
-        bh = 24 + LINE_H * (len(HELP) + len(NOTES)) + 20
-        pyxel.dither(0.85)
+        if lang.ja():
+            title, rows, notes, footer, step, key_w = TITLE_JA, HELP_JA, NOTES_JA, FOOTER_JA, 12, 70
+        else:
+            title, rows, notes, footer, step, key_w = TITLE, HELP, NOTES, FOOTER, LINE_H, 74
+        x0, y0, bw = 10, 6, w - 20
+        bh = 24 + step * (len(rows) + len(notes)) + 20
+        pyxel.dither(1.0)  # solid: Japanese letters need a calm background
         pyxel.rect(x0, y0, bw, bh, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(x0, y0, bw, bh, STONE_I[4])
-        pyxel.text(x0 + 8, y0 + 7, TITLE, FIRE_I[5])
+        lang.text(x0 + 8, y0 + 7, title, FIRE_I[5])
         y = y0 + 20
-        for key, desc in HELP:
-            pyxel.text(x0 + 8, y, key, FIRE_I[4])
-            pyxel.text(x0 + 82, y, desc, WHITE)
-            y += LINE_H
+        for key, desc in rows:
+            lang.text(x0 + 8, y, key, FIRE_I[4])
+            lang.text(x0 + 8 + key_w, y, desc, WHITE)
+            y += step
         y += 4
-        for note in NOTES:
-            pyxel.text(x0 + 8, y, note, STONE_I[6])
-            y += LINE_H
-        pyxel.text(x0 + bw - 8 - len(FOOTER) * 4, y0 + bh - 10, FOOTER, STONE_I[5])
+        for note in notes:
+            lang.text(x0 + 8, y, note, STONE_I[6])
+            y += step
+        lang.text(x0 + bw - 8 - lang.width(footer), y0 + bh - 12, footer, STONE_I[5])

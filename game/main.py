@@ -24,11 +24,14 @@ import time
 import pyxel
 
 from camp import CampScreen
+from devtools import HELP as DEV_HELP, DevTools
 from dungeon import CELL
 from enemies import Guardian
 from help import HINT, Help
 from ime import LatinInput
 from inventory import Inventory
+import lang
+from lang import tr
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, PALETTE, RED, STONE_I, WHITE
 from reading import Journal, Reader
 from runes import RunePanel, draw_glyph
@@ -55,7 +58,7 @@ class App:
         self.icons = make_icons()
         self.world = World(make_atlas(), W, H, Sfx(), start=self.START)
         if sys.platform == "emscripten":  # in a browser the input method is out of our hands
-            self.world.messages.add("Tip: turn off Japanese/IME input to play.")
+            self.world.messages.add(tr("Tip: turn off Japanese/IME input to play."))
         self.help = Help()
         self.help.open = True  # first thing a new player sees
         self.inventory = Inventory(self.icons)
@@ -66,6 +69,7 @@ class App:
         self.last_mouse = None
         self.show_map = False
         self.show_debug = False
+        self.dev = DevTools()
         self.cost_ms = 0.0
         self.update_ms = 0.0
         self.frame_ms = 16.7  # measured time between frames (smoothed)
@@ -114,11 +118,16 @@ class App:
             self.show_map = False
         if pyxel.btnp(pyxel.KEY_M):
             self.show_map = not self.show_map
+        if pyxel.btnp(pyxel.KEY_L):
+            lang.switch()
+            self.world.messages.add(tr("Language: English"))
         if pyxel.btnp(pyxel.KEY_J):
             self.journal.show(self.world.journal)
             return
         if pyxel.btnp(pyxel.KEY_F):
             self.show_debug = not self.show_debug
+        if self.show_debug:
+            self.dev.update(self.world)
         if pyxel.btnp(pyxel.KEY_I) or (clicked and self.panel_at(mx, my) is not None):
             self.inventory.open = True
             return
@@ -154,6 +163,10 @@ class App:
             for i in range(4):
                 pyxel.rectb(i, i, W - 2 * i, H - 2 * i, RED)
             pyxel.dither(1.0)
+        if w.flash:  # light and dark in turn, so the flash keeps its contrast
+            pyxel.dither(0.35 if w.flash % 2 else 0.25)
+            pyxel.rect(0, 0, W, H, WHITE if w.flash % 2 else BLACK)
+            pyxel.dither(1.0)
         if w.fade > 0:
             pyxel.dither(min(1.0, w.fade))
             pyxel.rect(0, 0, W, H, BLACK)
@@ -174,7 +187,8 @@ class App:
             pyxel.text(4, 16, f"{w.floor.name} cell {gx},{gy} yaw {p.yaw:5.1f} pitch {p.pitch:5.1f}", WHITE)
             pyxel.text(4, 24, f"cells {w.floor.view.cells_drawn:3d}  cost {self.cost_ms:4.1f}ms  "
                               f"fps {1000 / self.frame_ms:4.1f}", WHITE)
-        pyxel.text(4, 4, HINT, STONE_I[4])
+            pyxel.text(4, 32, DEV_HELP, FIRE_I[4])
+        lang.text(4, 4, tr(HINT), STONE_I[4])
         if self.inventory.open:
             self.inventory.draw(w, pyxel.mouse_x, pyxel.mouse_y)
         if self.camp.open:
@@ -251,7 +265,7 @@ class App:
         pyxel.rect(x, y, 18, 18, BLACK)
         pyxel.rectb(x, y, 18, 18, FIRE_I[3])
         draw_icon(self.icons, back, x + 1, y + 1)
-        pyxel.text(x + 21, y + 6, "on your back", STONE_I[6])
+        lang.text(x + 21, y + 6, tr("on your back"), STONE_I[6])
 
     def draw_wards(self):
         """Spells on the party, with the seconds they have left."""
@@ -300,14 +314,15 @@ class App:
             pyxel.text(x, y, text, FIRE_I[5] if kind else WHITE)
 
     def draw_messages(self):
-        lines = self.world.messages.visible()
-        y = H - 34 - 8 * len(lines)
-        for text, age in lines:
+        rows = [(part, age) for text, age in self.world.messages.visible() for part in lang.wrap(text, W - 16)]
+        step = lang.line(8)
+        y = H - 34 - step * len(rows)
+        for text, age in rows:
             col = WHITE if age < 150 else STONE_I[5]
-            x = (W - len(text) * 4) // 2
-            pyxel.text(x + 1, y + 1, text, BLACK)
-            pyxel.text(x, y, text, col)
-            y += 8
+            x = (W - lang.width(text)) // 2
+            lang.text(x + 1, y + 1, text, BLACK)
+            lang.text(x, y, text, col)
+            y += step
 
     def draw_target(self):
         """Corner brackets around the target chosen with Tab, with what Space will do."""
@@ -327,8 +342,10 @@ class App:
                 pyxel.line(cx, cy, cx, cy - sy * 4, col)
         label = w.action_name(hit)
         if label:
-            pyxel.text(x - len(label) * 2 + 1, y + s + 4, label, BLACK)
-            pyxel.text(x - len(label) * 2, y + s + 3, label, FIRE_I[5])
+            label = tr(label)
+            lx = x - lang.width(label) // 2
+            lang.text(lx + 1, y + s + 4, label, BLACK)
+            lang.text(lx, y + s + 3, label, FIRE_I[5])
         if w.hand is not None:
             draw_icon(self.icons, w.hand, x + s - 4, y - s - 12)
 
@@ -345,8 +362,9 @@ class App:
             pyxel.mouse(False)
             draw_icon(self.icons, w.hand, mx - ICON // 2, my - ICON // 2)
         if hint:
-            pyxel.text(mx + 10, my + 6, hint, BLACK)
-            pyxel.text(mx + 9, my + 5, hint, FIRE_I[5])
+            hint = tr(hint)
+            lang.text(mx + 10, my + 6, hint, BLACK)
+            lang.text(mx + 9, my + 5, hint, FIRE_I[5])
 
     def draw_map(self):
         s = 4

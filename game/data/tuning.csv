@@ -36,3 +36,9 @@ cast_cooldown,40,frames before the caster can swing or cast again
 fizzle_mana,0.5,fraction of the mana lost when the runes fizzle
 coins_start,15,coins the party starts with
 carry_speed,0.75,walking speed while carrying a load on the back
+hitstop_base,3,frames the action stops when a blow lands
+hitstop_per_damage,0.5,more stop frames per point of damage
+hitstop_max,10,longest stop for a blow
+hitstop_kill,8,stop frames added when the blow destroys the enemy (with a flash)
+hitstop_fall,14,stop frames when a party member falls (with a flash)
+jolt_size,4,how far a struck enemy shakes during the stop (cm)

@@ -1,5 +1,5 @@
-id,source,title,item,reward,text
-ring,board,The miller's ring,ring,20,"The miller dropped his late wife's silver ring down the cellar stairs. Somewhere on the first floor."
-brenn,board,Bring Brenn home,remains_brenn,50,"Brenn went down to the second floor and never came back. Carry her home so she can be buried."
-idol,board,The stone idol,idol,40,"A scholar pays for the stone idol said to stand in the cellar's deepest corner. It is heavy."
-lantern,note,Holt's lantern,lantern,25,"'If anyone finds this: my brass lantern is under the stairs below. Bring it to my sister at the camp. - Holt'"
+id,source,title,item,reward,text,title_ja,text_ja
+ring,board,The miller's ring,ring,20,The miller dropped his late wife's silver ring down the cellar stairs. Somewhere on the first floor.,粉屋の指輪,粉屋が、亡き妻の銀の指輪を地下室の階段に落とした。1 階のどこかにある。
+brenn,board,Bring Brenn home,remains_brenn,50,Brenn went down to the second floor and never came back. Carry her home so she can be buried.,ブレンを連れて帰る,ブレンは 2 階へ下りたきり戻らない。弔えるよう、亡骸を連れ帰ってほしい。
+idol,board,The stone idol,idol,40,A scholar pays for the stone idol said to stand in the cellar's deepest corner. It is heavy.,石の像,地下室のいちばん奥の隅に立つという石の像を、学者が買い取る。重い。
+lantern,note,Holt's lantern,lantern,25,'If anyone finds this: my brass lantern is under the stairs below. Bring it to my sister at the camp. - Holt',ホルトのランタン,「これを見つけた人へ。下の階の階段の下に、真鍮のランタンを置いてきた。野営地の妹に届けてほしい。ホルト」

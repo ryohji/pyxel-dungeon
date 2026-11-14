@@ -16,6 +16,9 @@ from textures import make_atlas
 from things import Thing
 from world import World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE

@@ -10,9 +10,8 @@ from dungeon import CELL
 from objects import cell_of, facing_yaw
 from palette import BLUE_I, EARTH_I, FIRE_I, STONE_I, WHITE
 from player import move_circle
+from tables import ENEMIES, TUNE
 
-SIGHT = 650.0  # how far an enemy notices the party (6.5 m)
-LOST_AFTER = 300  # frames without sight before giving up the chase
 
 
 def line_of_sight(solid, x0, z0, x1, z1):
@@ -49,19 +48,11 @@ def find_path(solid, start, goal, limit=600):
 
 
 class Skeleton:
-    NAME = "skeleton guard"
-    MAX_HP = 18
-    RADIUS = 20.0
-    WALK = 1.1
-    CHASE = 1.9
-    REACH = 82.0  # starts an attack within this distance
-    HIT_RANGE = 98.0  # the blow lands if the party is still this close
-    WINDUP = 28
-    STRIKE = 6
-    RECOVER = 30
-    DAMAGE = (3, 6)
-    UNDEAD = True  # light hurts it twice as much
-    STAGGER = 5  # a blow this heavy breaks off its swing
+    KIND = "skeleton"  # its row in data/enemies.csv; apply_tables() sets the numbers below
+    # NAME, MAX_HP, RADIUS, WALK, CHASE, SIGHT, LOST_AFTER (frames),
+    # REACH (starts an attack within this distance), HIT_RANGE (the blow lands if the party is still this close),
+    # WINDUP, STRIKE, RECOVER (frames), DAMAGE (min, max),
+    # UNDEAD (light hurts it twice as much), STAGGER (a blow this heavy breaks off its swing)
 
     def __init__(self, x, z, yaw=0.0):
         self.x, self.z, self.yaw = x, z, yaw
@@ -71,6 +62,7 @@ class Skeleton:
         self.walk_phase = 0.0
         self.walk_amount = 0.0
         self.flash = 0
+        self.jolt = 0  # frames left shaking from a blow (only the look; the body stays put)
         self.knock = (0.0, 0.0)
         self.cooldown = 0
         self.path = []
@@ -97,6 +89,12 @@ class Skeleton:
         return Vec3(self.x, 45, self.z)
 
     # ------------------------------------------------------------ damage
+    @property
+    def called(self):
+        """Its name in the language in use."""
+        from lang import loc
+        return loc(ENEMIES[self.KIND], "name")
+
     def hurt(self, damage, from_x, from_z):
         """Take a hit. Returns True when this blow destroys it."""
         if not self.alive:
@@ -153,7 +151,7 @@ class Skeleton:
 
         p = world.player
         dist = math.hypot(p.x - self.x, p.z - self.z)
-        sees = world.party.alive and dist < SIGHT and line_of_sight(floor.solid, self.x, self.z, p.x, p.z)
+        sees = world.party.alive and dist < self.SIGHT and line_of_sight(floor.solid, self.x, self.z, p.x, p.z)
         if sees:
             self.last_seen = (p.x, p.z)
             self.lost = 0
@@ -168,7 +166,7 @@ class Skeleton:
             elif self.t % self.idle_turn == 0:
                 self.yaw += self.rnd.choice((-90, 90))
         elif self.state == "chase":
-            if self.lost > LOST_AFTER or self.last_seen is None:
+            if self.lost > self.LOST_AFTER or self.last_seen is None:
                 self._set("idle")
             elif sees and dist < self.REACH and self.cooldown == 0:
                 self._set("attack")
@@ -255,7 +253,16 @@ class SkeletonNode(Node):
 
     def refresh(self):
         e = self.e
-        self.transform = _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0))
+        self.transform = _t(*self.jolted()) * _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0))
+
+    def jolted(self):
+        """Sideways shake while the action is stopped after a blow: big to small, side to side."""
+        e = self.e
+        if e.jolt <= 0:
+            return 0.0, 0.0, 0.0
+        size = TUNE["jolt_size"] * min(1.0, e.jolt / 6) * (1 if e.jolt % 2 else -1)
+        yr = math.radians(e.yaw)
+        return math.cos(yr) * size, 0.0, math.sin(yr) * size
 
     def _col(self, c):
         return WHITE if self.e.flash > 0 else c
@@ -348,16 +355,7 @@ class SkeletonNode(Node):
 class Guardian(Skeleton):
     """A stone guardian of the old kingdom: slow, tough, hits hard. Wakes as relics are restored."""
 
-    NAME = "stone guardian"
-    MAX_HP = 40
-    RADIUS = 26.0
-    CHASE = 1.35
-    REACH = 96.0
-    HIT_RANGE = 115.0
-    WINDUP = 38
-    DAMAGE = (6, 10)
-    UNDEAD = False
-    STAGGER = 9
+    KIND = "guardian"
 
     def __init__(self, x, z, yaw=0.0):
         super().__init__(x, z, yaw)
@@ -374,4 +372,24 @@ class GuardianNode(SkeletonNode):
 
     def refresh(self):
         e = self.e
-        self.transform = _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0)) * Mat4.from_scale(Vec3(self.SCALE, self.SCALE, self.SCALE))
+        self.transform = _t(*self.jolted()) * _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0)) * Mat4.from_scale(Vec3(self.SCALE, self.SCALE, self.SCALE))
+
+
+def apply_tables():
+    """Set each enemy kind's numbers from data/enemies.csv (again after a reload)."""
+    for cls in (Skeleton, Guardian):
+        r = ENEMIES[cls.KIND]
+        cls.NAME = r["name"]
+        cls.MAX_HP = r["max_hp"]
+        cls.RADIUS = float(r["radius"])
+        cls.WALK, cls.CHASE = float(r["walk"]), float(r["chase"])
+        cls.REACH, cls.HIT_RANGE = float(r["reach"]), float(r["hit_range"])
+        cls.WINDUP, cls.STRIKE, cls.RECOVER = r["windup"], r["strike"], r["recover"]
+        cls.DAMAGE = (r["damage_min"], r["damage_max"])
+        cls.UNDEAD = bool(r["undead"])
+        cls.STAGGER = r["stagger"]
+        cls.SIGHT = float(r["sight"])
+        cls.LOST_AFTER = int(r["lost_after_sec"] * 60)
+
+
+apply_tables()

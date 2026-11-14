@@ -1,8 +1,8 @@
-key,text
-scholar_intro,"I am Vesk, a scholar. These cellars are older than the town, older than anything. Bring me what you find down there, and the past will pay for itself."
-keeper_intro,"I keep the graves at the mouth of the hill. If you find old things down there, things that hum, do not bring them up. Lay them in the sealed niches. Each floor has one."
-niche,"A niche in the wall, sealed with old wax and older words. There is room inside for one thing at a time."
-restore,"Somewhere below, old lamps flare up. Something heavy stirs in the deep."
-bury,"The niche seals itself with a sigh. The dark grows deeper, and somewhere below, something crumbles to dust."
-end_restore,"The hill draws a breath and does not let it out. Lamps burn in halls no one has lit for a thousand years, and the stone guardians stand at every door, waiting for a king. Vesk names himself their steward. Perhaps he will be a better master than the last one. Perhaps the hill will decide."
-end_bury,"The hill sleeps. The niches hold what was taken, and the dark below grows quiet and deep. The gravekeeper writes a few more names in her book, and closes it. In town, no one ever learns how close they came."
+key,text,text_ja
+scholar_intro,"I am Vesk, a scholar. These cellars are older than the town, older than anything. Bring me what you find down there, and the past will pay for itself.",私はヴェスク、学者だ。この地下は町よりも古い。何よりも古い。下で見つけた物を持ってきてくれ。過去は、それだけの値打ちを払ってくれる。
+keeper_intro,"I keep the graves at the mouth of the hill. If you find old things down there, things that hum, do not bring them up. Lay them in the sealed niches. Each floor has one.",私は丘の入口で墓を守っている。下で古い物を見つけても……唸るような物は、上へ持ってこないで。封印の壁龕に納めておくれ。どの階にも一つある。
+niche,"A niche in the wall, sealed with old wax and older words. There is room inside for one thing at a time.",壁に穿たれた壁龕。古い蝋と、もっと古い言葉で封じられている。中には一度に一つだけ物を納められる。
+restore,"Somewhere below, old lamps flare up. Something heavy stirs in the deep.",下のどこかで、古い灯りが燃え上がった。深いところで、重い何かが身じろぎする。
+bury,"The niche seals itself with a sigh. The dark grows deeper, and somewhere below, something crumbles to dust.",壁龕がため息とともに閉じた。闇が深まり、下のどこかで何かが崩れて塵になった。
+end_restore,"The hill draws a breath and does not let it out. Lamps burn in halls no one has lit for a thousand years, and the stone guardians stand at every door, waiting for a king. Vesk names himself their steward. Perhaps he will be a better master than the last one. Perhaps the hill will decide.",丘は息を吸い込み、そのまま吐き出さない。千年だれも灯さなかった広間に灯りがともり、石の守護者たちがあらゆる扉の前に立って、王を待っている。ヴェスクは自らを彼らの執事と名乗った。前の主よりはましな主になるのかもしれない。それを決めるのは、丘なのかもしれない。
+end_bury,"The hill sleeps. The niches hold what was taken, and the dark below grows quiet and deep. The gravekeeper writes a few more names in her book, and closes it. In town, no one ever learns how close they came.",丘は眠った。壁龕は持ち去られた物を抱き、地下の闇は静かに深くなっていく。墓守は帳面に名前をいくつか書き足し、それを閉じた。町の人々は、自分たちがどれほど危うかったのかを知ることはない。

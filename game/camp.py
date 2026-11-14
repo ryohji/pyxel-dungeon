@@ -6,17 +6,21 @@ and buy supplies (data/shop.csv) with the coins. Both screens pause the
 game; Tab picks a row, Space or a click acts on it, Esc closes.
 """
 
-import textwrap
-
 import pyxel
 
+import lang
+
 from palette import BLACK, FIRE_I, STONE_I, WHITE
+from lang import loc, tr
 from tables import ITEMS, RELICS, REQUESTS, SHOP
 from things import Thing
 
 X0, Y0, PW, PH = 6, 14, 308, 214
-ROW_H = 10
 LIST_Y = Y0 + 22
+
+
+def row_h():
+    return lang.line(10)
 
 
 # ---------------------------------------------------------------- errands
@@ -39,7 +43,7 @@ def locate(world, kind):
 def accept(world, rid):
     if rid not in world.quests:
         world.quests[rid] = "accepted"
-        world.messages.add(f"Request taken: {REQUESTS[rid]['title']}.")
+        world.messages.add(tr("Request taken: {title}.", title=loc(REQUESTS[rid], "title")))
         world.sfx.play("pickup")
 
 
@@ -53,7 +57,7 @@ def deliver(world, rid):
     world.quests[rid] = "done"
     world.coins += req["reward"]
     world.sfx.play("coins")
-    world.messages.add(f"{req['title']}: done. +{req['reward']} coins.")
+    world.messages.add(tr("{title}: done. +{reward} coins.", title=loc(req, "title"), reward=req["reward"]))
     return True
 
 
@@ -64,7 +68,7 @@ def restore(world, kind):
         return False
     thing = found[0]
     found[1]()
-    world.messages.add(f"You give {thing.name} to Vesk.")
+    world.messages.add(tr("You give {name} to Vesk.", name=thing.name))
     world.settle_relic(thing, "restore")
     scholar = next((p for p in world.floor.people if p.name == "scholar"), None)
     if scholar is not None:
@@ -75,16 +79,16 @@ def restore(world, kind):
 
 def buy(world, kind, price):
     if world.coins < price:
-        world.messages.add("Not enough coins.")
+        world.messages.add(tr("Not enough coins."))
         world.sfx.play("fizzle")
         return False
     thing = Thing(kind)
     if not any(m.give(thing) for m in world.party.members if m.up):
-        world.messages.add("No room in the packs.")
+        world.messages.add(tr("No room in the packs."))
         return False
     world.coins -= price
     world.sfx.play("coins")
-    world.messages.add(f"Bought {thing.name}.")
+    world.messages.add(tr("Bought {name}.", name=thing.name))
     return True
 
 
@@ -118,44 +122,45 @@ class CampScreen:
     def rows(self, world):
         out = []
         if self.kind == "board":
-            out.append(Row("REQUESTS", "", None, heading=True))
+            out.append(Row(tr("REQUESTS"), "", None, heading=True))
             for rid, req in REQUESTS.items():
                 if req["source"] != "board":
                     continue
                 state = world.quests.get(rid)
-                right = {"accepted": "taken", "done": "done"}.get(state, f"{req['reward']} coins")
-                out.append(Row(req["title"], right, (lambda w, rid=rid: accept(w, rid)) if state is None else None,
-                               req["text"], enabled=state is None))
+                right = {"accepted": tr("taken"), "done": tr("done")}.get(state) or tr("{n} coins", n=req["reward"])
+                out.append(Row(loc(req, "title"), right, (lambda w, rid=rid: accept(w, rid)) if state is None else None,
+                               loc(req, "text"), enabled=state is None))
         elif self.kind == "scholar":
-            out.append(Row("GIVE TO VESK, THE SCHOLAR", "", None, heading=True))
+            out.append(Row(tr("GIVE TO VESK, THE SCHOLAR"), "", None, heading=True))
             for kind, relic in RELICS.items():
                 found = locate(world, kind)
                 if found is not None:
-                    out.append(Row(f"Give {relic['name']}", "restore", lambda w, k=kind: restore(w, k),
-                                   "Vesk will bring its power back. The dungeon will change at once."))
+                    out.append(Row(tr("Give {name}", name=loc(relic, "name")), tr("restore"), lambda w, k=kind: restore(w, k),
+                                   tr("Vesk will bring its power back. The dungeon will change at once.")))
         else:
-            out.append(Row("HAND OVER", "", None, heading=True))
+            out.append(Row(tr("HAND OVER"), "", None, heading=True))
             for rid, state in world.quests.items():
                 req = REQUESTS[rid]
                 if state == "done":
                     continue
                 ready = locate(world, req["item"]) is not None
-                out.append(Row(req["title"], f"{req['reward']} coins" if ready else "not carried",
+                out.append(Row(loc(req, "title"), tr("{n} coins", n=req["reward"]) if ready else tr("not carried"),
                                (lambda w, rid=rid: deliver(w, rid)) if ready else None,
-                               f"Bring back {ITEMS[req['item']]['name']}. {req['text']}", enabled=ready))
+                               tr("Bring back {name}.", name=loc(ITEMS[req["item"]], "name")) + " " + loc(req, "text"),
+                               enabled=ready))
             if len(out) == 1:
-                out.append(Row("(no requests taken)", "", None, enabled=False))
-            out.append(Row("SUPPLIES", "", None, heading=True))
+                out.append(Row(tr("(no requests taken)"), "", None, enabled=False))
+            out.append(Row(tr("SUPPLIES"), "", None, heading=True))
             for r in SHOP:
-                name = ITEMS[r["kind"]]["name"]
-                out.append(Row(f"Buy {name}", f"{r['price']} coins",
+                name = loc(ITEMS[r["kind"]], "name")
+                out.append(Row(tr("Buy {name}", name=name), tr("{n} coins", n=r["price"]),
                                lambda w, k=r["kind"], p=r["price"]: buy(w, k, p),
                                enabled=world.coins >= r["price"]))
-        out.append(Row("Close", "", lambda w: self.close()))
+        out.append(Row(tr("Close"), "", lambda w: self.close()))
         return out
 
     def _row_at(self, rows, my):
-        i = (my - LIST_Y) // ROW_H
+        i = (my - LIST_Y) // row_h()
         return i if 0 <= i < len(rows) and not rows[i].heading else None
 
     def _choosable(self, rows):
@@ -193,27 +198,27 @@ class CampScreen:
     def draw(self, world, mx, my):
         rows = self.rows(world)
         chosen = self.chosen(world, rows, mx, my)
-        pyxel.dither(0.9)
+        pyxel.dither(1.0)  # solid: Japanese letters need a calm background
         pyxel.rect(X0, Y0, PW, PH, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(X0, Y0, PW, PH, STONE_I[4])
         title = {"board": "THE REQUEST BOARD", "counter": "THE CAMP COUNTER", "scholar": "VESK'S TABLE"}[self.kind]
-        pyxel.text(X0 + 8, Y0 + 7, title, FIRE_I[5])
-        coins = f"Coins: {world.coins}"
-        pyxel.text(X0 + PW - 8 - len(coins) * 4, Y0 + 7, coins, FIRE_I[4])
+        lang.text(X0 + 8, Y0 + 7, tr(title), FIRE_I[5])
+        coins = tr("Coins: {n}", n=world.coins)
+        lang.text(X0 + PW - 8 - lang.width(coins), Y0 + 7, coins, FIRE_I[4])
         for i, r in enumerate(rows):
-            y = LIST_Y + i * ROW_H
+            y = LIST_Y + i * row_h()
             if r.heading:
-                pyxel.text(X0 + 8, y + 2, r.label, STONE_I[5])
+                lang.text(X0 + 8, y + 2, r.label, STONE_I[5])
                 continue
             if i == chosen:
-                pyxel.rect(X0 + 4, y, PW - 8, ROW_H - 1, STONE_I[2])
+                pyxel.rect(X0 + 4, y, PW - 8, row_h() - 1, STONE_I[2])
             col = WHITE if r.enabled else STONE_I[4]
-            pyxel.text(X0 + 14, y + 2, r.label, col)
-            pyxel.text(X0 + PW - 10 - len(r.right) * 4, y + 2, r.right, FIRE_I[4] if r.enabled else STONE_I[4])
+            lang.text(X0 + 14, y + 2, r.label, col)
+            lang.text(X0 + PW - 10 - lang.width(r.right), y + 2, r.right, FIRE_I[4] if r.enabled else STONE_I[4])
         if chosen is not None and rows[chosen].detail:
             y = Y0 + PH - 52
-            for line in textwrap.wrap(rows[chosen].detail, 72)[:4]:
-                pyxel.text(X0 + 8, y, line, STONE_I[6])
-                y += 9
-        pyxel.text(X0 + 8, Y0 + PH - 10, "Tab: next  Space/click: choose  Esc: close", STONE_I[5])
+            for line in lang.wrap(rows[chosen].detail, PW - 16)[:4]:
+                lang.text(X0 + 8, y, line, STONE_I[6])
+                y += lang.line(9)
+        lang.text(X0 + 8, Y0 + PH - 12, tr("Tab: next  Space/click: choose  Esc: close"), STONE_I[5])

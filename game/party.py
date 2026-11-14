@@ -11,6 +11,7 @@ from pyxel.cube import Mat4, Node, Vec3
 from enemies import line_of_sight
 from objects import cell_of
 from palette import BLUE_I, FIRE_I, MOSS_I, WHITE
+from lang import tr
 from tables import KIT, LEVELS, MEMBERS, SKILLS, STATS, TUNE, xp_for
 from things import Thing
 
@@ -49,6 +50,11 @@ class Member:
         self.warned = set()  # 'hungry' / 'thirsty' already said
 
     # ------------------------------------------------------------ stats
+    @property
+    def called(self):
+        """The member's name in the language in use."""
+        return tr(self.name)
+
     @property
     def max_hp(self):
         return self.stats["hp"]
@@ -121,14 +127,14 @@ class Member:
         if row["food"]:
             self.food = min(100.0, self.food + row["food"])
             self.warned.discard("hungry")
-            return f"{self.name} eats {thing.name}.", True
+            return tr("{name} eats {food}.", name=self.called, food=thing.name), True
         if row["water"]:
             if thing.charges <= 0:
-                return "It is empty.", False
+                return tr("It is empty."), False
             thing.charges -= 1
             self.water = min(100.0, self.water + row["water"])
             self.warned.discard("thirsty")
-            return f"{self.name} drinks.", False
+            return tr("{name} drinks.", name=self.called), False
         return None
 
 
@@ -216,7 +222,7 @@ class Party:
                 if t is not None and t.kind == "torch" and t.fuel > 0:
                     t.fuel -= 1
                     if t.fuel == 0:
-                        messages.add(f"{m.name}'s torch burns out.")
+                        messages.add(tr("{name}'s torch burns out.", name=m.called))
             if not m.up:
                 continue
             m.food = max(0.0, m.food - TUNE["food_per_min"] / 3600)
@@ -224,7 +230,7 @@ class Party:
             for need, value in (("hungry", m.food), ("thirsty", m.water)):
                 if value < TUNE["hungry_below"] and need not in m.warned:
                     m.warned.add(need)
-                    messages.add(f"{m.name} is {need}.")
+                    messages.add(tr("{name} is " + need + ".", name=m.called))
             if m.food <= 0 or m.water <= 0:
                 m.starve_tick += 1
                 if m.starve_tick >= TUNE["starve_hp_sec"] * 60:
@@ -258,8 +264,12 @@ class Party:
             self.heal_cooldown = HEAL_COOLDOWN
             mage.busy(60)
             world.sfx.play("heal")
-            who = "you" if hurt is fighter else "herself"
-            world.messages.add(f"{mage.name} heals {who}." if before else f"{mage.name} revives {hurt.name}.")
+            if not before:
+                world.messages.add(tr("{name} revives {who}.", name=mage.called, who=hurt.called))
+            elif hurt is fighter:
+                world.messages.add(tr("{name} heals you.", name=mage.called))
+            else:
+                world.messages.add(tr("{name} heals herself.", name=mage.called))
             world.award(mage, "priest", (hurt.hp - before) * TUNE["xp_heal"])
             return
         if mage.mana < TUNE["bolt_mana"]:

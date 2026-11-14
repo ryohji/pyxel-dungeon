@@ -30,4 +30,6 @@ K......D...........S##########
 @guardian 20,3 180
 @guardian 18,8 180
 @text 14,1 Here sits the King Under the Hill. The hill is his throne, and his servant, and his grave.
+@text_ja 14,1 ここに丘の下の王が座す。丘は王の玉座であり、しもべであり、墓である。
 @text 0,9 The river people came with fire. The King spoke, and the ground opened, and the river ran the other way.
+@text_ja 0,9 川の民が火を持って来た。王が言葉を発すると、大地は裂け、川は逆さに流れた。

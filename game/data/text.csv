@@ -1,0 +1,142 @@
+en,ja
+Arn,アルン
+Mira,ミラ
+"Vesk, the scholar",学者ヴェスク
+the gravekeeper,墓守
+fighter,戦士
+ninja,忍者
+priest,僧侶
+wizard,魔術師
+floor {n},{n} 階
+H: help,H: ヘルプ
+on your back,背負っている
+Tip: turn off Japanese/IME input to play.,ヒント: 日本語入力（IME）を切ってから遊んでください。
+Language: English,言語: 日本語
+attack,攻撃
+throw,投げる
+try,試す
+open,開ける
+close,閉める
+set down load,下ろす
+lift,背負う
+lay to rest,納める
+put down,置く
+use key,鍵を使う
+fill,水を汲む
+look,見る
+take,拾う
+pull,引く
+open / close,開け閉め
+drink,飲む
+read,読む
+trade,取引
+talk,話す
+Click.,カチッ。
+You fall through a pit!,落とし穴に落ちた！
+You go down the stairs.,階段を下りた。
+You climb the stairs.,階段を上った。
+You drink the cold water.,冷たい水を飲んだ。
+You pull the lever.,レバーを引いた。
+You fill the waterskin.,水袋に水を汲んだ。
+The key turns. The door opens.,鍵が回り、扉が開いた。
+It doesn't fit.,合わない。
+It is locked.,鍵がかかっている。
+It won't budge. A lever or a plate must work it.,びくともしない。レバーか踏み板で動くようだ。
+You put down {name}.,{name}を置いた。
+You already carry {name}.,すでに{name}を背負っている。
+You lift {name} onto your back.,{name}を背負った。
+You set down {name}.,{name}を下ろした。
+You take {name}.,{name}を拾った。
+You throw {name}.,{name}を投げた。
+You lay {name} in the niche.,{name}を壁龕に納めた。
+New request: {title}.,新しい依頼: {title}
+A CARVING,碑文
+A SEALED NICHE,封印の壁龕
+A relic restored: lamps relight below.,遺物が戻された。地下の灯りがともる。
+A relic laid to rest: the dark deepens below.,遺物が葬られた。地下の闇が深まる。
+A stone guardian wakes on {floors}.,石の守護者が目覚めた: {floors}
+Stone guardians walk this floor ({n}). M shows where.,この階には石の守護者がいる（{n} 体）。M で位置が分かる。
+THE END,終わり
+THE HILL WAKES,丘が目覚める
+The {name} falls apart.,{name}が崩れ落ちた。
+{name} is now a level {lv} {skill}!,{name}の{skill}の技能が {lv} になった！
+{name} falls!,{name}が倒れた！
+The party has fallen...,パーティーは全滅した……
+You wake at the floor's entrance.,この階の入口で目を覚ました。
+{name} is down.,{name}は倒れている。
+Hold food or drink over the mouth.,食べ物か飲み物を持って口の欄へ。
+That is not something to eat.,それは食べられない。
+It is empty.,空っぽだ。
+{name} does not go there.,{name}はそこに入らない。
+{name} eats {food}.,{name}は{food}を食べた。
+{name} drinks.,{name}は水を飲んだ。
+{name}'s torch burns out.,{name}の松明が燃え尽きた。
+{name} is hungry.,{name}は腹が減っている。
+{name} is thirsty.,{name}は喉が渇いている。
+{name} revives {who}.,{name}が{who}を起こした。
+{name} heals you.,{name}があなたの傷を癒やした。
+{name} heals herself.,{name}が自分の傷を癒やした。
+{name} lacks the mana ({cost}).,{name}の魔力が足りない（{cost} 必要）。
+The runes fizzle: {name}'s {skill} skill is too low.,ルーンが不発: {name}の{skill}の技能が足りない。
+There is no room for it there.,そこには出せない。
+Something is in the way.,何かが邪魔をしている。
+{spell} surrounds the party.,{spell}がパーティーを包んだ。
+!,！
+{spell}: the party's wounds close.,{spell}: パーティーの傷がふさがった。
+Choose a power rune first.,先に強さのルーンを選ぶ。
+Choose a element rune first.,先に属性のルーンを選ぶ。
+Choose a shape rune first.,先に形のルーンを選ぶ。
+power rune: 1-4,強さのルーン: 1-4
+element rune: 1-4,属性のルーン: 1-4
+shape rune: 1-4,形のルーン: 1-4
+CAST,唱える
+a burnt-out torch,燃え尽きた松明
+an empty waterskin,空の水袋
+Request taken: {title}.,依頼を受けた: {title}
+{title}: done. +{reward} coins.,{title}: 達成。硬貨 +{reward}
+You give {name} to Vesk.,{name}をヴェスクに渡した。
+Not enough coins.,硬貨が足りない。
+No room in the packs.,荷物に空きがない。
+Bought {name}.,{name}を買った。
+THE REQUEST BOARD,依頼の掲示板
+THE CAMP COUNTER,野営地の受付
+VESK'S TABLE,ヴェスクの机
+REQUESTS,依頼
+taken,受注済み
+done,達成
+{n} coins,硬貨 {n}
+"GIVE TO VESK, THE SCHOLAR",学者ヴェスクに渡す
+Give {name},{name}を渡す
+restore,復活
+Vesk will bring its power back. The dungeon will change at once.,ヴェスクがその力を呼び戻す。ダンジョンはすぐに変わる。
+HAND OVER,依頼の品を渡す
+not carried,持っていない
+Bring back {name}.,{name}を持ち帰る。
+(no requests taken),（受けた依頼はない）
+SUPPLIES,品物
+Buy {name},{name}を買う
+Close,閉じる
+Coins: {n},硬貨: {n}
+Tab: next  Space/click: choose  Esc: close,Tab:次へ Space/クリック:選ぶ Esc:閉じる
+RIGHT,右手
+LEFT,左手
+HEAD,頭
+BODY,体
+EAT,口
+In hand: ,手に:
+On Arn's back: {name},アルンが背負っている物: {name}
+PACK,荷物
+hits {a}-{b},威力 {a}-{b}
+thrown {a}-{b},投げて {a}-{b}
+armor {n},守り {n}
+food +{n},食料 +{n}
+{a}/{b} drinks,残り {a}/{b} 杯
+{n} min left,残り {n} 分
+", ",、
+"I/Esc: close  Tab: next slot  Space/click: take, put, eat",I/Esc:閉じる Tab:次 Space/クリック:取る・置く・食べる
+J: read again later   Space or click,J で後から読み返せる　Space・クリック
+ (more),（続く）
+JOURNAL,覚え書き
+"Nothing written yet. Relic lore, carvings, notes and what people say are kept here.",まだ何も書かれていない。遺物の説明、碑文、書き置き、人の話がここに残る。
+J/Esc: close,J・Esc: 閉じる
+<- ->: turn  J/Esc: close,← →: めくる　J・Esc: 閉じる

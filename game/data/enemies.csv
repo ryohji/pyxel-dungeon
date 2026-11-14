@@ -1,0 +1,3 @@
+kind,name,max_hp,radius,walk,chase,reach,hit_range,windup,strike,recover,damage_min,damage_max,undead,stagger,sight,lost_after_sec,name_ja
+skeleton,skeleton guard,18,20,1.1,1.9,82,98,28,6,30,3,6,1,5,650,5,骨の番兵
+guardian,stone guardian,40,26,1.1,1.35,96,115,38,6,30,6,10,0,9,650,5,石の守護者

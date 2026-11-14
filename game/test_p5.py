@@ -16,6 +16,9 @@ from textures import make_atlas
 from view import MAX_DARK
 from world import World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE
@@ -125,7 +128,7 @@ far_hp = other.hp
 world.cast((1, "frost", "burst"))
 check(guard.hp < guard.MAX_HP and guard.slow > 0, "Cold Snap hurt and slowed the guard beside you")
 check(other.hp == far_hp, "the far guard was out of reach")
-tick(30)
+tick(30 + world.hitstop)
 check(not fl.effects, "the burst faded")
 
 # 6. walls: ice blocks everyone, light only the undead, fire burns

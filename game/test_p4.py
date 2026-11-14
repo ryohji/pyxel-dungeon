@@ -16,6 +16,9 @@ from things import Thing
 from view import MAX_DARK
 from world import FALL_FRAMES, STAIRS_HOLD, World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE

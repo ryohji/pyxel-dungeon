@@ -14,6 +14,9 @@ from textures import make_atlas
 from things import Thing
 from world import World
 
+import lang
+
+lang.current[0] = "en"  # these checks read the English lines
 W, H = 320, 240
 pyxel.init(W, H)
 pyxel.colors[:] = PALETTE
@@ -70,7 +73,7 @@ for _ in range(900):
     tick()
     if not guard.alive:
         break
-tick(2)  # the collapse starts on the guard's next turn
+tick(2 + world.hitstop)  # the collapse starts on the guard's next turn, after the hit stop
 check(not guard.alive and "collapse" in sfx.played, f"the guard was destroyed (hp {hp_before} -> {guard.hp})")
 tick(60)
 check(guard.state == "dead", "its bones lie still")

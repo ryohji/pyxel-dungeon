@@ -20,6 +20,7 @@ from dungeon import CELL, WALL_H
 from objects import cell_center, cell_of
 from palette import BLUE_I, FIRE_I, MOSS_I, STONE_I, WHITE
 from party import BOLT_SPEED, Bolt
+from lang import loc, tr
 from tables import TUNE, rows
 
 POWERS = (1, 2, 3, 4)
@@ -44,7 +45,7 @@ def describe(runes):
         return None, 0
     power, element, shape = runes
     row = SPELLS[(element, shape)]
-    return row["name"], row["mana"] * power
+    return loc(row, "name"), row["mana"] * power
 
 
 def amount(row, power):
@@ -68,14 +69,14 @@ def cast(world, caster, runes):
     if not caster.up or caster.cooldown:
         return "wait"
     if caster.mana < cost:
-        msgs.add(f"{caster.name} lacks the mana ({cost}).")
+        msgs.add(tr("{name} lacks the mana ({cost}).", name=caster.called, cost=cost))
         world.sfx.play("fizzle")
         return "wait"
     skill = skill_of(element)
     caster.busy(TUNE["cast_cooldown"])
     if power > caster.level[skill] + TUNE["power_over_skill"]:
         caster.mana -= cost * TUNE["fizzle_mana"]
-        msgs.add(f"The runes fizzle: {caster.name}'s {skill} skill is too low.")
+        msgs.add(tr("The runes fizzle: {name}'s {skill} skill is too low.", name=caster.called, skill=tr(skill)))
         world.sfx.play("fizzle")
         return "fizzle"
     fl = world.floor
@@ -83,12 +84,12 @@ def cast(world, caster, runes):
     if shape == "wall":
         cell = front_cell(world)
         if cell is None or fl.solid(*cell) or fl.d.char(*cell) in "OXU":
-            msgs.add("There is no room for it there.")
+            msgs.add(tr("There is no room for it there."))
             world.sfx.play("fizzle")
             return "wait"
         blocking = element in ("frost", "light")
         if blocking and (any(e.alive and e.cell == cell for e in fl.enemies) or cell == p.cell):
-            msgs.add("Something is in the way.")
+            msgs.add(tr("Something is in the way."))
             world.sfx.play("fizzle")
             return "wait"
     caster.mana -= cost
@@ -99,12 +100,12 @@ def cast(world, caster, runes):
         fl.add_bolt(Bolt(start, d * BOLT_SPEED, caster, amount(row, power), element, power))
     elif shape == "ward":
         world.party.add_ward(element, frames(row, power), row["amount_min"] * power)
-        msgs.add(f"{row['name']} surrounds the party.")
+        msgs.add(tr("{spell} surrounds the party.", spell=loc(row, "name")))
     elif shape == "burst":
         burst(world, caster, element, row, power)
     elif shape == "wall":
         fl.add_field(Field(element, cell, frames(row, power), amount(row, power)))
-        msgs.add(f"{row['name']}!")
+        msgs.add(loc(row, "name") + tr("!"))
     return "cast"
 
 
@@ -127,7 +128,7 @@ def burst(world, caster, element, row, power):
             if m.up:
                 m.heal(amount(row, power))
         world.sfx.play("heal")
-        world.messages.add(f"{row['name']}: the party's wounds close.")
+        world.messages.add(tr("{spell}: the party's wounds close.", spell=loc(row, "name")))
         return
     world.sfx.play(SOUND[element])
     for e in fl.enemies:

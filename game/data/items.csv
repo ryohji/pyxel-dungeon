@@ -1,21 +1,21 @@
-kind,name,slot,damage_min,damage_max,throw_min,throw_max,defense,food,water,charges,fuel_sec,heavy
-rock,a rock,,0,0,2,4,0,0,0,0,0,0
-key_iron,an iron key,,0,0,1,2,0,0,0,0,0,0
-torch,a torch,hand,1,2,1,3,0,0,0,0,720,0
-bread,a loaf of bread,,0,0,1,1,0,40,0,0,0,0
-waterskin,a waterskin,,0,0,1,2,0,0,35,3,0,0
-dagger,a dagger,hand,2,4,4,7,0,0,0,0,0,0
-sword,a short sword,hand,4,7,2,4,0,0,0,0,0,0
-buckler,a buckler,hand,0,0,1,3,2,0,0,0,0,0
-cap,a leather cap,head,0,0,1,1,1,0,0,0,0,0
-jerkin,a leather jerkin,body,0,0,0,1,2,0,0,0,0,0
-ring,a silver ring,,0,0,1,1,0,0,0,0,0,0
-lantern,a brass lantern,,0,0,1,2,0,0,0,0,0,0
-note_lantern,a folded note,,0,0,0,0,0,0,0,0,0,0
-remains_brenn,the remains of Brenn,,0,0,0,0,0,0,0,0,0,1
-idol,a stone idol,,0,0,0,0,0,0,0,0,0,1
-relic_shard,a crown shard,,0,0,1,2,0,0,0,0,0,0
-relic_seal,a bronze seal,,0,0,1,2,0,0,0,0,0,0
-relic_tablet,a stone tablet,,0,0,1,2,0,0,0,0,0,1
-relic_chronicle,a chronicle page,,0,0,1,2,0,0,0,0,0,0
-relic_heart,the heart stone,,0,0,1,2,0,0,0,0,0,0
+kind,name,slot,damage_min,damage_max,throw_min,throw_max,defense,food,water,charges,fuel_sec,heavy,name_ja
+rock,a rock,,0,0,2,4,0,0,0,0,0,0,石
+key_iron,an iron key,,0,0,1,2,0,0,0,0,0,0,鉄の鍵
+torch,a torch,hand,1,2,1,3,0,0,0,0,720,0,松明
+bread,a loaf of bread,,0,0,1,1,0,40,0,0,0,0,パン
+waterskin,a waterskin,,0,0,1,2,0,0,35,3,0,0,水袋
+dagger,a dagger,hand,2,4,4,7,0,0,0,0,0,0,短剣
+sword,a short sword,hand,4,7,2,4,0,0,0,0,0,0,小剣
+buckler,a buckler,hand,0,0,1,3,2,0,0,0,0,0,小盾
+cap,a leather cap,head,0,0,1,1,1,0,0,0,0,0,革の帽子
+jerkin,a leather jerkin,body,0,0,0,1,2,0,0,0,0,0,革の胴着
+ring,a silver ring,,0,0,1,1,0,0,0,0,0,0,銀の指輪
+lantern,a brass lantern,,0,0,1,2,0,0,0,0,0,0,真鍮のランタン
+note_lantern,a folded note,,0,0,0,0,0,0,0,0,0,0,折りたたんだ書き置き
+remains_brenn,the remains of Brenn,,0,0,0,0,0,0,0,0,0,1,ブレンの亡骸
+idol,a stone idol,,0,0,0,0,0,0,0,0,0,1,石の像
+relic_shard,a crown shard,,0,0,1,2,0,0,0,0,0,0,王冠の欠片
+relic_seal,a bronze seal,,0,0,1,2,0,0,0,0,0,0,青銅の印章
+relic_tablet,a stone tablet,,0,0,1,2,0,0,0,0,0,1,石板
+relic_chronicle,a chronicle page,,0,0,1,2,0,0,0,0,0,0,年代記の一頁
+relic_heart,the heart stone,,0,0,1,2,0,0,0,0,0,0,心臓石

@@ -45,3 +45,4 @@ K.....S###########.....#######
 @guardian 8,12 90
 @guardian 21,10 270
 @text 0,3 A worn relief: a hill with an eye in its side. Tiny figures kneel before it, and the hill is smiling.
+@text_ja 0,3 すり減った浮き彫り。側面に目を持つ丘が彫られている。小さな人々がその前にひざまずき、丘は微笑んでいる。
