@@ -1,4 +1,4 @@
-"""Pyxel Dungeon (P6): the camp, requests, and bringing things back.
+"""Pyxel Dungeon: go down, bring things back to the camp, and go down again.
 
 Controls
   W A S D        move / strafe        Shift  run
@@ -24,6 +24,8 @@ import time
 import pyxel
 
 from camp import CampScreen
+import save
+from surface import SurfaceScreen
 from devtools import HELP as DEV_HELP, DevTools
 from dungeon import CELL
 from enemies import Guardian
@@ -41,7 +43,7 @@ from world import World
 
 W, H = 320, 240
 TITLE = "Pyxel Dungeon"
-START = "camp"  # the floor a new game begins on
+START = "camp"  # a new game begins at the camp
 
 COMPASS = ("N", "E", "S", "W")
 
@@ -50,6 +52,7 @@ PANEL_W, PANEL_H = 70, 24
 
 class App:
     START = START
+    SAVE = True  # read the saved game at start, and save on leaving and reaching the camp
     def __init__(self):
         # no quit key: Esc closes the help screen instead (quit by closing the window)
         pyxel.init(W, H, title=TITLE, fps=60, quit_key=pyxel.KEY_NONE)
@@ -60,13 +63,24 @@ class App:
         if sys.platform == "emscripten":  # in a browser the input method is out of our hands
             self.world.messages.add(tr("Tip: turn off Japanese/IME input to play."))
         self.help = Help()
-        self.help.open = True  # first thing a new player sees
+        data = save.read() if self.SAVE and self.START == "camp" else None
+        if data is not None:
+            try:
+                save.restore(self.world, data)
+                self.world.messages.add(tr("Welcome back."))
+            except (KeyError, ValueError, TypeError) as e:  # an old or broken save: start afresh
+                print("save not loaded:", e)
+                self.world = World(make_atlas(), W, H, Sfx(), start=self.START)
+                data = None
+        self.help.open = data is None  # first thing a new player sees
         self.inventory = Inventory(self.icons)
         self.runes = RunePanel(H)
         self.camp = CampScreen()
+        self.surface = SurfaceScreen()
         self.reader = Reader()
         self.journal = Journal()
         self.last_mouse = None
+        self.surface_seen = False
         self.show_map = False
         self.show_debug = False
         self.dev = DevTools()
@@ -99,9 +113,9 @@ class App:
             self.reader.update(clicked)
             return
         if self.journal.open:  # paused while reading the journal again
-            self.journal.update(self.world.journal, mx, clicked)
+            self.journal.update(self.world, mx, clicked)
             return
-        if self.camp.open:  # paused at the board or the counter
+        if self.camp.open:  # paused at a camp screen
             if pyxel.btnp(pyxel.KEY_ESCAPE):
                 self.camp.close()
             else:
@@ -114,15 +128,18 @@ class App:
             else:
                 self.inventory.update(self.world, mx, my, clicked, space, tab, moved)
             return
+        if pyxel.btnp(pyxel.KEY_L):
+            lang.switch()
+            self.world.messages.add(tr("Language: English"))
+        if self.world.surface:
+            self.update_surface(mx, my, clicked, space, tab, moved)
+            return
         if pyxel.btnp(pyxel.KEY_ESCAPE):
             self.show_map = False
         if pyxel.btnp(pyxel.KEY_M):
             self.show_map = not self.show_map
-        if pyxel.btnp(pyxel.KEY_L):
-            lang.switch()
-            self.world.messages.add(tr("Language: English"))
         if pyxel.btnp(pyxel.KEY_J):
-            self.journal.show(self.world.journal)
+            self.journal.show(self.world)
             return
         if pyxel.btnp(pyxel.KEY_F):
             self.show_debug = not self.show_debug
@@ -135,7 +152,40 @@ class App:
             clicked = False  # the click was on the rune panel, not the dungeon
         self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
         self.take_pages()
+        self.keep()
         self.update_ms = (time.perf_counter() - t0) * 1000
+
+    def update_surface(self, mx, my, clicked, space, tab, moved):
+        """At the camp: the menu (after what the delve brought back)."""
+        if pyxel.btnp(pyxel.KEY_J):
+            self.journal.show(self.world)
+            return
+        opened = self.surface.update(self.world, mx, my, clicked, space, tab, moved)
+        if opened in ("down", "supplies"):
+            self.camp.show(opened)
+        elif opened == "pack":
+            self.inventory.open = True
+        elif opened in ("talk", "relic"):
+            self.journal.show(self.world, opened)
+        self.take_pages()
+        self.keep()
+
+    def keep(self):
+        """Save when the world asks (on leaving the camp and on getting back), and cheer a good delve."""
+        w = self.world
+        if w.surface and w.report is not None and not self.surface_seen:
+            self.surface.sel = 0
+            if any(kind in ("good", "relic") for kind, _ in w.report):
+                w.sfx.play("levelup")
+        self.surface_seen = w.surface and w.report is not None
+        if w.want_save:
+            w.want_save = False
+            if not self.SAVE:
+                return
+            try:
+                save.write(w)
+            except OSError as e:
+                print("could not save:", e)
 
     def take_pages(self):
         """Open whatever the world wants shown: pages to read first, then a camp screen."""
@@ -153,6 +203,9 @@ class App:
             self.frame_ms = self.frame_ms * 0.95 + (t0 - self.last_frame) * 1000 * 0.05
         self.last_frame = t0
         w = self.world
+        if w.surface:
+            self.draw_surface()
+            return
         w.floor.view.draw(0, 0, W, H)
         draw_ms = (time.perf_counter() - t0) * 1000
         self.cost_ms = self.cost_ms * 0.9 + (self.update_ms + draw_ms) * 0.1
@@ -195,13 +248,30 @@ class App:
             self.camp.draw(w, pyxel.mouse_x, pyxel.mouse_y)
         if self.reader.open:
             self.reader.draw(H)
-        if self.journal.open:
-            self.journal.draw(self.world.journal, H)
+        self.draw_overlays()
         if self.help.open:
-            self.help.draw(W, H)
             pyxel.mouse(True)
         else:
             self.draw_cursor()
+
+    def draw_overlays(self):
+        if self.journal.open:
+            self.journal.draw(self.world, H)
+        if self.help.open:
+            self.help.draw(W, H)
+
+    def draw_surface(self):
+        w = self.world
+        self.surface.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        self.draw_messages(top=H - 50)
+        if self.inventory.open:
+            self.inventory.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        if self.camp.open:
+            self.camp.draw(w, pyxel.mouse_x, pyxel.mouse_y)
+        if self.reader.open:
+            self.reader.draw(H)
+        self.draw_overlays()
+        pyxel.mouse(True)
 
     def draw_compass(self):
         """A heading strip like  W ── N ── E : the cardinal points that are in view."""
@@ -313,10 +383,10 @@ class App:
             pyxel.text(x + 1, y + 1, text, BLACK)
             pyxel.text(x, y, text, FIRE_I[5] if kind else WHITE)
 
-    def draw_messages(self):
+    def draw_messages(self, top=H - 34):
         rows = [(part, age) for text, age in self.world.messages.visible() for part in lang.wrap(text, W - 16)]
         step = lang.line(8)
-        y = H - 34 - step * len(rows)
+        y = top - step * len(rows)
         for text, age in rows:
             col = WHITE if age < 150 else STONE_I[5]
             x = (W - lang.width(text)) // 2
@@ -375,7 +445,7 @@ class App:
         pyxel.rect(ox - 2, oy - 2, d.w * s + 4, d.h * s + 4, BLACK)
         for gx, gy in w.explored.get(w.floor.name, ()):
             ch = d.char(gx, gy)
-            col = {"O": BLACK, "X": FIRE_I[2], "U": FIRE_I[2], "D": FIRE_I[1], "_": STONE_I[5]}.get(ch, STONE_I[3])
+            col = {"O": BLACK, "X": FIRE_I[2], "U": FIRE_I[2], "H": EARTH_I[6], "D": FIRE_I[1], "_": STONE_I[5]}.get(ch, STONE_I[3])
             pyxel.rect(ox + gx * s, oy + gy * s, s, s, col)
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 if d.is_wall(gx + dx, gy + dy):
@@ -384,6 +454,11 @@ class App:
             if e.alive and isinstance(e, Guardian):
                 gx, gy = e.cell
                 pyxel.rectb(ox + gx * s - 1, oy + gy * s - 1, s + 2, s + 2, BLUE_I[2])
+        if pyxel.frame_count // 15 % 2:  # what was left where the party fell
+            for it in w.floor.items:
+                if it.thing.lost:
+                    gx, gy = it.cell
+                    pyxel.rectb(ox + gx * s - 1, oy + gy * s - 1, s + 2, s + 2, FIRE_I[5])
         p = w.player
         px = ox + p.x / CELL * s
         pz = oy + p.z / CELL * s

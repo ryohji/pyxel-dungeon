@@ -2,7 +2,7 @@
 
   F5  read data/*.csv again and rebuild the current floor from its map
   F6  the party takes no harm (on / off)
-  F7  go up a floor, F8 go down a floor (to its stairs or start)
+  F7  go up a floor (from floor 1: to the camp), F8 go down a floor (to its stairs or start)
   F9  put the next kind of item in the hand (Shift+F9: the one before)
 
 They exist so that numbers and maps can be tried at once, without restarting
@@ -68,16 +68,17 @@ def reload(world):
         place(world)
     else:
         p.x, p.z = x, z
-    world._remember_entry()
     world.messages.add("[dev] data and map reloaded")
 
 
 def warp(world, name):
+    if name == "camp":
+        world.arrive_surface()
+        return
     world.floor = world.get_floor(name)
     world.player.solid = world.floor.solid
     place(world)
     world.arrived_on = world.player.cell
-    world._remember_entry()
     world.messages.add(f"[dev] to {name}")
 
 

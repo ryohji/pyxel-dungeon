@@ -194,6 +194,18 @@ class Party:
             m.__dict__.update(state)
             m.hit_flash = 0
 
+    def rest(self):
+        """A night at the camp: everyone up again, rested, fed and watered."""
+        self.wards.clear()
+        for m in self.members:
+            m.hp = m.max_hp
+            m.stamina = float(m.max_stamina)
+            m.mana = float(m.max_mana)
+            m.food = max(m.food, float(TUNE["food_start"]))
+            m.water = max(m.water, float(TUNE["water_start"]))
+            m.warned.clear()
+            m.cooldown = m.hit_flash = 0
+
     def tick(self):
         """Every frame the game runs: cooldowns, regaining stamina and mana."""
         for m in self.members:

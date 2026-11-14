@@ -56,14 +56,15 @@ def finds(app):
 SCENES = [
     ("camp", at((5, 4), 0, -5), 3),
     ("camp_counter", at((8, 2), 90, -10), 3),
-    ("board", both(at((5, 1), 0), screen("board")), 2),
-    ("counter", both(carry, screen("counter")), 2),
+    ("board", both(at((5, 1), 0), screen("down")), 2),
+    ("counter", both(carry, screen("supplies")), 2),
     ("finds", both(close, finds, at((5, 4), 0, -20)), 3),
     ("carrying", both(at((5, 4), 180)), 3),
 ]
 
 
 class ShotApp(main.App):
+    SAVE = False  # never touch the player's saved game
     START = "camp"
 
     def __init__(self):

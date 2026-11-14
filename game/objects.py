@@ -191,7 +191,7 @@ class StairsNode(Node):
 
 # ---------------------------------------------------------------- wall fixtures
 class Fixture:
-    """Something set into a wall, usable from every open side: fountain, board, counter."""
+    """Something set into a wall, usable from every open side: fountain, carving, niche."""
 
     KIND = "fixture"
 
@@ -217,24 +217,6 @@ class Fountain(Fixture):
 
     def make_node(self):
         return FountainNode()
-
-
-class Board(Fixture):
-    """The camp's request board."""
-
-    KIND = "board"
-
-    def make_node(self):
-        return BoardNode()
-
-
-class Counter(Fixture):
-    """The camp counter: hand over what you brought back, buy supplies."""
-
-    KIND = "counter"
-
-    def make_node(self):
-        return CounterNode()
 
 
 class Carving(Fixture):
@@ -294,82 +276,28 @@ class NicheNode(Node):
             self.shaded(True)
 
 
-# ---------------------------------------------------------------- people
-PERSON_COLORS = {"scholar": (BLUE_I[1], BLUE_I[2], EARTH_I[6]), "keeper": (STONE_I[2], STONE_I[1], EARTH_I[5])}
+# ---------------------------------------------------------------- the shaft up
 PERSON_NAMES = {"scholar": "Vesk, the scholar", "keeper": "the gravekeeper"}
 
 
-class Person:
-    """Someone at the camp to talk to."""
-
-    RADIUS = 20.0
-
-    def __init__(self, name, cell, yaw):
-        self.name = name
-        self.x, self.z = cell_center(cell)
-        self.yaw = yaw
-        self.node = PersonNode(self)
-
-    @property
-    def cell(self):
-        return cell_of(self.x, self.z)
-
-    @property
-    def center(self):
-        return Vec3(self.x, 45, self.z)
-
-    @property
-    def title(self):
-        from lang import tr
-        return tr(PERSON_NAMES.get(self.name, self.name))
+def person_title(who):
+    from lang import tr
+    return tr(PERSON_NAMES.get(who, who))
 
 
-class PersonNode(Node):
-    def __init__(self, person):
+class RopeNode(Node):
+    """An old shaft up to the camp (H): a knotted rope hanging from the dark."""
+
+    def __init__(self, cell):
         super().__init__()
-        self.person = person
-        self.transform = Mat4.from_translation(Vec3(person.x, 0, person.z)) * yaw_matrix(person.yaw)
-        self.t = 0
-
-    def on_update(self):
-        self.t += 1
+        x, z = cell_center(cell)
+        self.transform = Mat4.from_translation(Vec3(x, 0, z))
 
     def on_draw(self):
-        robe, trim, skin = PERSON_COLORS.get(self.person.name, (STONE_I[3], STONE_I[2], EARTH_I[5]))
-        breathe = math.sin(self.t * 0.05) * 0.8
-        self.box(Mat4.from_translation(Vec3(0, 20, 0)), Vec3(26, 40, 18), robe)  # robe
-        self.box(Mat4.from_translation(Vec3(0, 50 + breathe / 2, 0)), Vec3(22, 22, 14), robe)  # chest
-        self.box(Mat4.from_translation(Vec3(0, 40, 0)), Vec3(27, 3, 19), trim)  # belt
-        for side in (1, -1):
-            self.box(Mat4.from_translation(Vec3(side * 14, 46, 2)), Vec3(6, 22, 7), robe)  # sleeves
-            self.box(Mat4.from_translation(Vec3(side * 14, 34, 3)), Vec3(5, 5, 5), skin)
-        self.box(Mat4.from_translation(Vec3(0, 68 + breathe, 0)), Vec3(12, 13, 12), skin)  # head
-        self.box(Mat4.from_translation(Vec3(0, 74 + breathe, -1)), Vec3(15, 7, 15), trim)  # hood
-        self.box(Mat4.from_translation(Vec3(0, 66 + breathe, -3)), Vec3(15, 12, 10), trim)
-        for side in (1, -1):
-            self.box(Mat4.from_translation(Vec3(side * 3, 69 + breathe, 6)), Vec3(2, 2, 1), BLACK)
-
-
-class BoardNode(Node):
-    def on_draw(self):
-        self.box(Mat4.from_translation(Vec3(0, 55, 2)), Vec3(64, 44, 4), EARTH_I[3])
-        for x in (-34, 34):
-            self.box(Mat4.from_translation(Vec3(x, 40, 3)), Vec3(5, 80, 5), EARTH_I[2])
-        for i, (x, y, w, h) in enumerate(((-18, 62, 18, 16), (4, 66, 16, 12), (20, 50, 14, 16), (-14, 44, 20, 12))):
-            self.box(Mat4.from_translation(Vec3(x, y, 4.5)), Vec3(w, h, 1), (STONE_I[7], EARTH_I[7], STONE_I[6])[i % 3])
-            self.box(Mat4.from_translation(Vec3(x, y + h / 2 - 2, 5.5)), Vec3(2, 2, 1), RED)
-
-
-class CounterNode(Node):
-    def on_draw(self):
-        self.box(Mat4.from_translation(Vec3(0, 18, 14)), Vec3(80, 36, 26), EARTH_I[2])  # the counter
-        self.box(Mat4.from_translation(Vec3(0, 37, 15)), Vec3(86, 4, 30), EARTH_I[4])  # its top
-        self.box(Mat4.from_translation(Vec3(-24, 42, 18)), Vec3(12, 8, 12), FIRE_I[2])  # coin box
-        self.box(Mat4.from_translation(Vec3(20, 43, 14)), Vec3(14, 10, 10), STONE_I[5])  # scales
-        self.box(Mat4.from_translation(Vec3(0, 80, 8)), Vec3(3, 20, 3), STONE_I[3])  # lantern hook
-        self.shaded(False)
-        self.box(Mat4.from_translation(Vec3(0, 66, 8)), Vec3(8, 10, 8), FIRE_I[5])  # lantern
-        self.shaded(True)
+        self.box(Mat4.from_translation(Vec3(0, 100, 0)), Vec3(3, 200, 3), EARTH_I[5])
+        for y in range(14, 200, 22):  # knots to climb by
+            self.box(Mat4.from_translation(Vec3(0, y, 0)), Vec3(6, 4, 6), EARTH_I[4])
+        self.box(Mat4.from_translation(Vec3(0, 2, 0)), Vec3(18, 4, 18), EARTH_I[3])  # a coil on the floor
 
 
 class FountainNode(Node):

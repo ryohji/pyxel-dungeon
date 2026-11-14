@@ -105,17 +105,15 @@ for _ in range(60):
         break
 check(other.hp < hp_before, f"a thrown rock hurt the guard ({hp_before} -> {other.hp})")
 
-# 5. a party wipe sends everyone back to the floor's entrance, floor reset
-entry = dict(world.entry)
+# 5. a party wipe carries everyone back to the camp, rested; the guards stand again on the next delve
 party.fighter.hp, party.mage.hp = 1, 1
 world.hit_party(10, other)
 world.hit_party(10, other)
 check(world.wipe is not None and "defeat" in sfx.played, "the party fell")
-old_floor = world.floor
 tick(130)
-check(world.wipe is None and world.floor is not old_floor, "the floor was loaded afresh")
-check((round(p.x), round(p.z)) == (round(entry["x"]), round(entry["z"])), "back at the entrance")
-check([m.hp for m in party.members] == [s["hp"] for s in entry["party"]], "party health as on entry")
+check(world.wipe is None and world.surface, "carried back to the camp")
+check(all(m.hp == m.max_hp for m in party.members), "everyone rested")
+world.descend()
 check(all(e.alive for e in world.floor.enemies), "the guards are back")
 
 print("all checks passed")

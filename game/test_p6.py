@@ -1,4 +1,4 @@
-"""Headless checks of P6 so far: the camp, requests, notes, carrying on the back, delivering, buying.
+"""Headless checks of P6: the requests before going down, notes, carrying on the back, delivering on return, buying.
 
 Run: python test_p6.py   (exits non-zero on failure)
 """
@@ -54,32 +54,26 @@ def take(kind):
     world._take(it)
 
 
-# 1. the game starts in the camp, which is lit without a torch
-check(world.floor.name == "camp", "starting in the camp")
-party.mage.equip["left"] = None
-tick()
-check(world.floor.view.dark == 0, "the camp is lit")
+# 1. the game starts at the camp
+check(world.surface, "starting at the camp")
 
-# 2. the board: Tab finds it, Space opens it, a request is taken
-place((5, 1), 0, 10)
-tick(tab=True)
-check(world.target is not None and world.target.kind == "board", "Tab chose the board")
-tick(attack_key=True)
-check(world.screen == "board", "Space opened the board")
-camp.show(world.screen)
-world.screen = None
+# 2. before going down: the requests are listed; one is taken, one taken and let go
+camp.show("down")
+labels = [r.label for r in camp.rows(world)]
+check("The miller's ring" in labels and "Holt's lantern" not in labels, "the board's requests are listed, not the notes'")
 row("The miller's ring").action(world)
 check(world.quests == {"ring": "accepted"}, "took the miller's request")
-check(row("The miller's ring").action is None, "a taken request cannot be taken twice")
+check(row("* The miller's ring").right == "taken", "a taken request shows as taken")
+row("The stone idol").action(world)
+row("* The stone idol").action(world)
+check("idol" not in world.quests, "a request taken by mistake can be let go")
 
 # 3. down the stairs into the cellar
-place((2, 1), 270)
-p.x -= 100
-for _ in range(120):
-    tick()
-    if world.travel is None and world.floor.name == "floor1":
-        break
-check(world.floor.name == "floor1" and p.cell == (1, 1), "down the camp stairs to floor 1")
+next(r for r in camp.rows(world) if r.first).action(world)
+check(not camp.open, "going down closes the screen")
+tick(40)
+check(not world.surface and world.floor.name == "floor1" and p.cell == (1, 1) and world.travel is None,
+      "down the camp stairs to floor 1")
 
 # 4. a small find and a note with a request
 take("ring")
@@ -103,32 +97,25 @@ take("idol")
 check(world.back is not None, "lifted it again")
 check("lift" in sfx.played, "the lift sound played")
 
-# 6. a wipe restores what was carried, the coins and the requests
-world._remember_entry()
-back, coins = world.back, world.coins
-world.back, world.coins, world.quests = None, 0, {}
-world._restart_floor()
-check(world.back is not None and world.back.kind == back.kind and world.coins == coins
-      and world.quests.get("lantern") == "accepted", "a restart brings back the load, coins and requests")
-
-# 7. the counter: hand over, get paid; nothing for what was not asked
-world.floor = world.get_floor("camp")
-camp.show("counter")
-labels = [r.label for r in camp.rows(world)]
-check("The miller's ring" in labels and "The stone idol" not in labels, "the counter lists only taken requests")
+# 6. back at the camp: what was asked for is handed over by itself; nothing for what was not asked
 before = world.coins
-row("The miller's ring").action(world)
+world.arrive_surface()
 check(world.coins == before + REQUESTS["ring"]["reward"] and world.quests["ring"] == "done", "paid for the ring")
 check(not any(t is not None and t.kind == "ring" for t in arn.pack), "the ring was handed over")
 check("coins" in sfx.played, "coins clinked")
-check(row("Holt's lantern").action is None, "the lantern is not carried yet")
-camp.show("board")
+check(world.back is not None and world.back.kind == "idol", "the idol was not asked for: still carried")
+check(world.quests["lantern"] == "accepted", "the lantern is not carried yet")
+world.report = None
+camp.show("down")
+check("The miller's ring" not in [r.label for r in camp.rows(world)], "a done request is gone from the list")
+check(row("* Holt's lantern").action is None, "a note's request cannot be let go")
 row("The stone idol").action(world)
-camp.show("counter")
-row("The stone idol").action(world)
+world.descend()
+world.arrive_surface()
 check(world.back is None and world.quests["idol"] == "done", "the idol was delivered off Arn's back")
 
-# 8. buying supplies
+# 7. buying supplies
+camp.show("supplies")
 torch_price = next(r["price"] for r in SHOP if r["kind"] == "torch")
 coins = world.coins
 packs = sum(t is not None for m in party.members for t in m.pack)

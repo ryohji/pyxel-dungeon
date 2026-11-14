@@ -6,10 +6,11 @@ so grid rows grow southward (+Z).
 
 Map characters
   #  stone wall            M  mossy wall          S  wall with a switch
-  F  wall with a fountain  B  wall with a request board  C  wall with a counter
+  F  wall with a fountain
   K  wall with a carving (its words set by @text)          N  wall with a seal niche
   .  floor                 D  door                _  pressure plate
   O  pit                   X  stairs down         U  stairs up
+  H  an old shaft with a rope, straight up to the camp (a shortcut once climbed)
   ^ > v <  player start facing N / E / S / W  (a floor cell)
   (space)  solid rock
 
@@ -25,7 +26,6 @@ mechanisms (coordinates are gx,gy):
   @text X,Y WORDS...              what the carving at X,Y says
   @text_ja X,Y WORDS...           the same in Japanese
   @guardian X,Y [YAW]             a stone guardian that wakes when a relic is restored
-  @npc X,Y NAME [YAW]             someone standing at the camp (scholar, keeper)
 """
 
 from pyxel.cube import Primitive
@@ -36,9 +36,9 @@ CELL = 100.0  # 1 m
 WALL_H = 100.0
 SUBDIV = 4  # faces are split SUBDIV x SUBDIV to hide affine texture warping
 
-WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall", "B": "wall", "C": "wall",
+WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall",
               "K": "wall", "N": "wall", " ": "wall"}
-FLOOR_CHARS = set(".D_OXU")
+FLOOR_CHARS = set(".D_OXUH")
 START_YAW = {"^": 0.0, ">": 90.0, "v": 180.0, "<": 270.0}
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))
 
@@ -60,7 +60,6 @@ class Dungeon:
         self.texts = {}  # carving cell -> words
         self.texts_ja = {}  # carving cell -> the words in Japanese
         self.guardians = []  # (cell, yaw) in the order they wake
-        self.npcs = []  # (cell, name, yaw)
         rows = []
         for ln in text.splitlines():
             if ln.startswith(";"):
@@ -105,8 +104,6 @@ class Dungeon:
             self.texts_ja[_xy(args[0])] = " ".join(args[1:])
         elif cmd == "guardian":
             self.guardians.append((_xy(args[0]), float(args[1]) if len(args) > 1 else 0.0))
-        elif cmd == "npc":
-            self.npcs.append((_xy(args[0]), args[1], float(args[2]) if len(args) > 2 else 0.0))
         else:
             raise ValueError(f"unknown map command @{cmd}")
 
@@ -147,7 +144,7 @@ class Dungeon:
         faces = []
         if ch not in "OX":
             faces.append(((0.0, 0.0, 0.0), (0, 1, 0), (1, 0, 0), h, h, "floor"))
-        if ch != "U":
+        if ch not in "UH":
             faces.append(((0.0, WALL_H, 0.0), (0, -1, 0), (1, 0, 0), h, h, "ceiling"))
         for dx, dy in SIDES:
             n = (-dx, 0, -dy)
@@ -158,7 +155,7 @@ class Dungeon:
             # shafts: below the floor for pits and stairs down, above for stairs up
             if ch in "OX":
                 faces.append(((dx * h, -WALL_H / 2, dy * h), n, u, h, WALL_H / 2, "shaft"))
-            if ch == "U":
+            if ch in "UH":
                 faces.append(((dx * h, WALL_H * 1.5, dy * h), n, u, h, WALL_H / 2, "shaft"))
         return faces
 

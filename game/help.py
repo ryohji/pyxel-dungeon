@@ -23,7 +23,7 @@ HELP = [
     ("1 2 3 4", "runes: power, then element, then shape"),
     ("Enter", "cast them (Backspace takes one back)"),
     ("I", "inventory: equip, eat, drink (pauses)"),
-    ("J", "journal: read lore, carvings, notes again"),
+    ("J", "journal: what people said, relics, carvings"),
     ("L", "language: Japanese / English"),
     ("M  F", "map, debug info"),
     ("H", "open / close this help"),
@@ -31,7 +31,8 @@ HELP = [
 NOTES = [
     "Fire Frost Light Life x Bolt Ward Burst Wall. Power needs",
     "skill. Skills grow with use. Eat, drink, keep a torch lit.",
-    "Take requests at the camp board, bring things back to the counter.",
+    "Take requests before going down; they are handed over on return.",
+    "If the party falls, what Arn carried stays where he fell.",
     "Turn off Japanese / IME input to play.",
 ]
 FOOTER = "H, Esc or click to close"
@@ -48,12 +49,13 @@ HELP_JA = [
     ("1 2 3 4", "ルーン（強さ→属性→形の順）"),
     ("Enter", "唱える（Backspace で 1 つ戻す）"),
     ("I", "持ち物（装備、食べる、飲む。一時停止）"),
-    ("J", "覚え書き（読んだ物をもう一度読む）"),
+    ("J", "覚え書き（人の話、遺物、碑文と書き置き）"),
     ("L  M  F", "言語の切り替え、地図、開発用の表示"),
     ("H", "このヘルプを開く / 閉じる"),
 ]
 NOTES_JA = [
-    "掲示板で依頼を受け、持ち帰って受付に渡す。",
+    "潜る前に依頼を受ける。品は帰ったときに渡される。",
+    "全滅すると、背負った物は倒れた場所に残る。",
     "食べて、飲んで、松明を絶やさないこと。",
 ]
 FOOTER_JA = "H、Esc、クリックで閉じる"

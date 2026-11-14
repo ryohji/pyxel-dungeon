@@ -10,6 +10,7 @@ class Thing:
         row = ITEMS[kind]
         self.charges = row["charges"] if charges is None else charges  # waterskin drinks
         self.fuel = row["fuel_sec"] * 60 if fuel is None else fuel  # torch frames left
+        self.lost = False  # left where the party fell (shown on the map until taken)
 
     @property
     def row(self):

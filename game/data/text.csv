@@ -98,8 +98,6 @@ You give {name} to Vesk.,{name}をヴェスクに渡した。
 Not enough coins.,硬貨が足りない。
 No room in the packs.,荷物に空きがない。
 Bought {name}.,{name}を買った。
-THE REQUEST BOARD,依頼の掲示板
-THE CAMP COUNTER,野営地の受付
 VESK'S TABLE,ヴェスクの机
 REQUESTS,依頼
 taken,受注済み
@@ -109,11 +107,8 @@ done,達成
 Give {name},{name}を渡す
 restore,復活
 Vesk will bring its power back. The dungeon will change at once.,ヴェスクがその力を呼び戻す。ダンジョンはすぐに変わる。
-HAND OVER,依頼の品を渡す
-not carried,持っていない
 Bring back {name}.,{name}を持ち帰る。
-(no requests taken),（受けた依頼はない）
-SUPPLIES,品物
+SUPPLIES,補給
 Buy {name},{name}を買う
 Close,閉じる
 Coins: {n},硬貨: {n}
@@ -140,3 +135,51 @@ JOURNAL,覚え書き
 "Nothing written yet. Relic lore, carvings, notes and what people say are kept here.",まだ何も書かれていない。遺物の説明、碑文、書き置き、人の話がここに残る。
 J/Esc: close,J・Esc: 閉じる
 <- ->: turn  J/Esc: close,← →: めくる　J・Esc: 閉じる
+<- ->: turn  Tab: next book  Esc: close,←→: めくる Tab: 次の本 Esc: 閉じる
+Tab: next book  Esc: close,Tab: 次の本 Esc: 閉じる
+WHAT PEOPLE SAID,人の話
+RELICS,遺物
+CARVINGS AND NOTES,碑文と書き置き
+Nothing heard yet. What Vesk and the gravekeeper say at the camp is kept here.,まだ誰の話も聞いていない。野営地でヴェスクと墓守が話したことが、ここに残る。
+"No relic found yet. A relic's lore, and what became of it, is kept here.",まだ遺物を見つけていない。遺物の言い伝えと、その行方が、ここに残る。
+Nothing read yet. Carvings on the walls and notes found in the dungeon are kept here.,まだ何も読んでいない。壁の碑文と、ダンジョンで見つけた書き置きが、ここに残る。
+Given to Vesk: its power is back in the hill.,ヴェスクに渡した。その力は丘に戻った。
+Laid to rest on floor {n}.,{n} 階の壁龕に納めた。
+Carried now. Bring it to the camp.,いま持っている。野営地へ持ち帰ろう。
+Left in the dungeon.,ダンジョンに置いたまま。
+BACK AT THE CAMP,野営地に帰った
+THE CAMP,野営地
+Back,戻る
+Coins earned: {n},稼いだ硬貨: {n}
+Floor 1: the cellar stairs,1 階: 地下室の階段
+Floor {n}: the old shaft,{n} 階: 古い縦穴
+Left where you fell: {things}. M shows the place.,倒れた場所に残した物: {things}。M の地図で場所が分かる。
+Nothing brought back this time.,今回は何も持ち帰らなかった。
+Space or click: to the camp,Space・クリック: 野営地へ
+The party fell on floor {n}. The gravekeeper carried you back.,パーティーは {n} 階で倒れた。墓守が野営地まで運んでくれた。
+The shaft from floor {n} is open: the camp can send you down it.,{n} 階への縦穴が開いた。次からは野営地からそこへ下りられる。
+Welcome back.,おかえり。
+"{name}: brought back. Give it to Vesk, or take it down to a niche.",{name}を持ち帰った。ヴェスクに渡すか、地下の壁龕に納めるか。
+{name}: laid to rest on floor {n}.,{name}を {n} 階の壁龕に納めた。
+You climb the old shaft to the camp.,古い縦穴を登り、野営地に出た。
+Talk. Give Vesk a relic and its power comes back to the hill.,話す。遺物をヴェスクに渡すと、その力が丘に戻る。
+The gravekeeper,墓守
+Talk. The gravekeeper tends the dead of the hill.,話す。墓守は丘の死者を弔っている。
+Belongings,持ち物
+"Equip, eat and drink, sort the packs.",装備する、食べる、飲む、荷物を整える。
+What people said,人の話
+Read again what Vesk and the gravekeeper told you.,ヴェスクと墓守の話を読み返す。
+Relics,遺物
+"The relics found so far: their lore, and what became of each.",これまでに見つけた遺物の言い伝えと、それぞれの行方。
+Into the dungeon,ダンジョンへ
+BEFORE GOING DOWN,潜る前に
+GO DOWN,下りる
+Request dropped: {title}.,依頼をやめた: {title}
+Space/click: take it.,Space かクリックで受ける。
+Space/click: let it go.,Space かクリックでやめる。
+(no requests left),（残っている依頼はない）
+What was asked for is handed over by itself when you come back.,頼まれた品は、帰ったときにひとりでに渡される。
+Supplies,補給
+"Buy torches, bread and water with the coins you earned.",稼いだ硬貨で、松明やパン、水袋を買う。
+"See the requests and take some, then go down the stairs or a shaft you opened.",依頼を見て受けてから、階段か開いた縦穴を下りる。
+Take requests before going down; they are handed over on return.,潜る前に依頼を受ける。品は帰ったときに渡される。

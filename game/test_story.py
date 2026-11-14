@@ -94,10 +94,8 @@ check(undead(fl) == before - 1, "a skeleton crumbled")
 check(fl.fixtures[(23, 2)].contents == ["relic_shard"], "the niche holds the shard")
 
 # 5. the scholar: talking, giving a relic, guardians wake, lamps relight
-world.floor = world.get_floor("camp")
-scholar = next(pp for pp in world.floor.people if pp.name == "scholar")
 world.hand = Thing("relic_seal")
-world.talk(scholar)
+world.talk("scholar")
 check(world.pages[0][1] == LINES["scholar_intro"]["text"], "Vesk introduces himself")
 check(any(RELICS["relic_shard"]["scholar_bury"] == t for _, t in world.pages), "and grumbles about the buried shard")
 check(world.screen == "scholar", "carrying a relic opens his table")
@@ -109,7 +107,6 @@ restore(world, "relic_seal")
 check(world.hand is None and world.relic_log[-1][:2] == ("relic_seal", "restore"), "the seal is restored")
 check(sum(isinstance(e, Guardian) for e in world.floors["floor1"].enemies) == guardians + 1,
       "a guardian woke on floor 1")
-world.floor = world.floors["floor1"]
 tick()
 check(fl.view.dark == dark0, "restored lamps undo the buried dark")
 
@@ -117,29 +114,20 @@ check(fl.view.dark == dark0, "restored lamps undo the buried dark")
 f2 = world.get_floor("floor2")
 check(f2.woken == 1 and any(not e.alive for e in f2.enemies), "floor 2 has one guardian awake and one skeleton fallen")
 
-# 7. a wipe takes back what was settled after entering the floor
-world._remember_entry()
-world.relic_log.append(("relic_heart", "restore", "camp"))
-world._restart_floor()
-check(len(world.relic_log) == 2, "a restart forgets relics settled since entering")
-
-# 8. the keeper speaks; a heavy relic is laid to rest from Arn's back
-keeper = next(pp for pp in world.get_floor("camp").people if pp.name == "keeper")
+# 7. the keeper speaks; a heavy relic is laid to rest from Arn's back
 world.pages.clear()
-world.talk(keeper)
+world.talk("keeper")
 check(world.pages[0][1] == LINES["keeper_intro"]["text"] and len(world.pages) == 3, "the gravekeeper speaks of both relics")
 world.pages.clear()
-world.floor = world.floors["floor1"]
 world.back = Thing("relic_tablet")
 place((22, 2), 90)
 world.click(point_at_wall((23, 2), (-1, 0)))
 check(world.back is None and world.relic_log[-1][:2] == ("relic_tablet", "bury"), "the tablet laid to rest off Arn's back")
 
-# 9. the last relics settle the ending
+# 8. the last relics settle the ending
 world.hand = Thing("relic_chronicle")
 world.click(point_at_wall((23, 2), (-1, 0)))
 check(world.ending is None, "no ending with one relic left")
-world.floor = world.floors["camp"]
 world.hand = Thing("relic_heart")
 world.pages.clear()
 restore(world, "relic_heart")

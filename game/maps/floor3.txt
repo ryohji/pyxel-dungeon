@@ -1,6 +1,7 @@
 ; Floor 3 - the hall of the king under the hill
+; H  an old shaft with a rope up to the camp: climb it once and the camp can send you down it
 ##############################
-#######.......K.........######
+#######H......K.........######
 #######.#..#.......#..#.######
 #######.................######
 #######.#..#.......#..#.N#####

@@ -86,6 +86,7 @@ SCENES = [
 
 
 class ShotApp(main.App):
+    SAVE = False  # never touch the player's saved game
     START = "camp"
 
     def __init__(self):

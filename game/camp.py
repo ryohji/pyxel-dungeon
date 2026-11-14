@@ -1,9 +1,11 @@
-"""The camp at the mouth of the dungeon: the request board and the counter.
+"""The camp's screens: the way down, supplies, and Vesk's table.
 
-Requests (data/requests.csv) come from the board, or from notes found in
-the dungeon. Bring the item back, hand it over at the counter, get paid,
-and buy supplies (data/shop.csv) with the coins. Both screens pause the
-game; Tab picks a row, Space or a click acts on it, Esc closes.
+The way down lists the requests (data/requests.csv) before the party goes
+down: take one there, or let it go. Requests also come from notes found in
+the dungeon. What was asked for is handed over by itself when the party
+gets back (world.arrive_surface). Coins buy supplies (data/shop.csv).
+The screens pause the game; Tab picks a row, Space or a click acts on it,
+Esc closes.
 """
 
 import pyxel
@@ -47,8 +49,16 @@ def accept(world, rid):
         world.sfx.play("pickup")
 
 
+def drop(world, rid):
+    """Let a request from the board go again."""
+    if world.quests.get(rid) == "accepted" and REQUESTS[rid]["source"] == "board":
+        del world.quests[rid]
+        world.messages.add(tr("Request dropped: {title}.", title=loc(REQUESTS[rid], "title")))
+        world.sfx.play("pickup")
+
+
 def deliver(world, rid):
-    """Hand over a request's item at the counter. Returns True when paid."""
+    """Hand over a request's item (on getting back to the camp). Returns True when paid."""
     req = REQUESTS[rid]
     found = locate(world, req["item"])
     if world.quests.get(rid) != "accepted" or found is None:
@@ -70,10 +80,8 @@ def restore(world, kind):
     found[1]()
     world.messages.add(tr("You give {name} to Vesk.", name=thing.name))
     world.settle_relic(thing, "restore")
-    scholar = next((p for p in world.floor.people if p.name == "scholar"), None)
-    if scholar is not None:
-        world.talk(scholar)
-        world.screen = None
+    world.talk("scholar")
+    world.screen = None
     return True
 
 
@@ -94,18 +102,19 @@ def buy(world, kind, price):
 
 # ---------------------------------------------------------------- screens
 class Row:
-    def __init__(self, label, right, action, detail="", enabled=True, heading=False):
+    def __init__(self, label, right, action, detail="", enabled=True, heading=False, first=False):
         self.label = label
         self.right = right
         self.action = action  # callable(world), or None
         self.detail = detail
         self.enabled = enabled
         self.heading = heading
+        self.first = first  # chosen first when the screen opens
 
 
 class CampScreen:
     def __init__(self):
-        self.kind = None  # 'board' or 'counter' while open
+        self.kind = None  # 'down', 'supplies' or 'scholar' while open
         self.sel = 0
 
     @property
@@ -114,22 +123,42 @@ class CampScreen:
 
     def show(self, kind):
         self.kind = kind
-        self.sel = 0
+        self.sel = None  # the row marked first, once the rows are known
 
     def close(self):
         self.kind = None
 
     def rows(self, world):
         out = []
-        if self.kind == "board":
+        if self.kind == "down":
             out.append(Row(tr("REQUESTS"), "", None, heading=True))
             for rid, req in REQUESTS.items():
-                if req["source"] != "board":
-                    continue
                 state = world.quests.get(rid)
-                right = {"accepted": tr("taken"), "done": tr("done")}.get(state) or tr("{n} coins", n=req["reward"])
-                out.append(Row(loc(req, "title"), right, (lambda w, rid=rid: accept(w, rid)) if state is None else None,
-                               loc(req, "text"), enabled=state is None))
+                if state == "done" or (req["source"] != "board" and state is None):
+                    continue
+                need = tr("Bring back {name}.", name=loc(ITEMS[req["item"]], "name")) + " " + loc(req, "text")
+                if state is None:
+                    out.append(Row(loc(req, "title"), tr("{n} coins", n=req["reward"]),
+                                   lambda w, rid=rid: accept(w, rid), tr("Space/click: take it.") + " " + need))
+                elif req["source"] == "board":
+                    out.append(Row("* " + loc(req, "title"), tr("taken"), lambda w, rid=rid: drop(w, rid),
+                                   tr("Space/click: let it go.") + " " + need))
+                else:  # found on a note: it stays taken
+                    out.append(Row("* " + loc(req, "title"), tr("taken"), None, need))
+            if len(out) == 1:
+                out.append(Row(tr("(no requests left)"), "", None, enabled=False))
+            out.append(Row(tr("GO DOWN"), "", None, heading=True))
+            ways = [("floor1", tr("Floor 1: the cellar stairs"))]
+            ways += [(name, tr("Floor {n}: the old shaft", n=name[5:])) for name in world.shortcuts]
+            for name, label in ways:
+                out.append(Row(label, "", lambda w, name=name: self.go_down(w, name),
+                               tr("What was asked for is handed over by itself when you come back."), first=name == "floor1"))
+        elif self.kind == "supplies":
+            for r in SHOP:
+                name = loc(ITEMS[r["kind"]], "name")
+                out.append(Row(tr("Buy {name}", name=name), tr("{n} coins", n=r["price"]),
+                               lambda w, k=r["kind"], p=r["price"]: buy(w, k, p),
+                               enabled=world.coins >= r["price"]))
         elif self.kind == "scholar":
             out.append(Row(tr("GIVE TO VESK, THE SCHOLAR"), "", None, heading=True))
             for kind, relic in RELICS.items():
@@ -137,27 +166,12 @@ class CampScreen:
                 if found is not None:
                     out.append(Row(tr("Give {name}", name=loc(relic, "name")), tr("restore"), lambda w, k=kind: restore(w, k),
                                    tr("Vesk will bring its power back. The dungeon will change at once.")))
-        else:
-            out.append(Row(tr("HAND OVER"), "", None, heading=True))
-            for rid, state in world.quests.items():
-                req = REQUESTS[rid]
-                if state == "done":
-                    continue
-                ready = locate(world, req["item"]) is not None
-                out.append(Row(loc(req, "title"), tr("{n} coins", n=req["reward"]) if ready else tr("not carried"),
-                               (lambda w, rid=rid: deliver(w, rid)) if ready else None,
-                               tr("Bring back {name}.", name=loc(ITEMS[req["item"]], "name")) + " " + loc(req, "text"),
-                               enabled=ready))
-            if len(out) == 1:
-                out.append(Row(tr("(no requests taken)"), "", None, enabled=False))
-            out.append(Row(tr("SUPPLIES"), "", None, heading=True))
-            for r in SHOP:
-                name = loc(ITEMS[r["kind"]], "name")
-                out.append(Row(tr("Buy {name}", name=name), tr("{n} coins", n=r["price"]),
-                               lambda w, k=r["kind"], p=r["price"]: buy(w, k, p),
-                               enabled=world.coins >= r["price"]))
-        out.append(Row(tr("Close"), "", lambda w: self.close()))
+        out.append(Row(tr("Back") if self.kind == "down" else tr("Close"), "", lambda w: self.close()))
         return out
+
+    def go_down(self, world, name):
+        self.close()
+        world.descend(name)
 
     def _row_at(self, rows, my):
         i = (my - LIST_Y) // row_h()
@@ -176,7 +190,7 @@ class CampScreen:
             if world.mode == "keys" and self.sel in pick:
                 self.sel = pick[(pick.index(self.sel) + 1) % len(pick)]
             elif self.sel not in pick:
-                self.sel = pick[0]
+                self.sel = next((i for i in pick if rows[i].first), pick[0])
             world.mode = "keys"
         chosen = self.chosen(world, rows, mx, my)
         if chosen is None:
@@ -190,7 +204,7 @@ class CampScreen:
         if world.mode == "keys":
             pick = self._choosable(rows)
             if self.sel not in pick:
-                self.sel = pick[0]
+                self.sel = next((i for i in pick if rows[i].first), pick[0])
             return self.sel
         return self._row_at(rows, my) if X0 <= mx < X0 + PW else None
 
@@ -202,7 +216,7 @@ class CampScreen:
         pyxel.rect(X0, Y0, PW, PH, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(X0, Y0, PW, PH, STONE_I[4])
-        title = {"board": "THE REQUEST BOARD", "counter": "THE CAMP COUNTER", "scholar": "VESK'S TABLE"}[self.kind]
+        title = {"down": "BEFORE GOING DOWN", "supplies": "SUPPLIES", "scholar": "VESK'S TABLE"}[self.kind]
         lang.text(X0 + 8, Y0 + 7, tr(title), FIRE_I[5])
         coins = tr("Coins: {n}", n=world.coins)
         lang.text(X0 + PW - 8 - lang.width(coins), Y0 + 7, coins, FIRE_I[4])
