@@ -1,0 +1,5 @@
+kind,reach,cooldown,stamina,stone,with_load,load_speed,tech,tech_mult,text,text_ja
+dagger,110,26,4,1.0,0.5,1.0,sweep,1.3,"Quick and short. Good for throwing.",素早く短い。投げてもよい。
+sword,130,36,5,1.0,0.5,1.0,sweep,1.5,"Quick, with a short reach. The heavy blow sweeps everything in front.",速いが間合いは短い。大技は前にいる敵をまとめて薙ぎ払う。
+spear,190,50,7,1.0,0.0,1.0,thrust,1.6,"A long reach, but slow. Useless with a load on the back. The heavy blow runs through a line of foes.",間合いは長いが遅い。荷を背負うと使えない。大技は一列に並んだ敵を突き通す。
+maul,120,58,10,2.0,0.5,0.85,quake,2.0,"Slow and heavy: it breaks stone. Slower still with a load. The heavy blow shakes all around.",遅く重いが、石を砕く。荷を背負うとさらに遅い。大技は周りの敵をまとめて揺さぶる。

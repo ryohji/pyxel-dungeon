@@ -3,7 +3,8 @@
 The file is JSON with a version number, so that later versions can read
 (or knowingly refuse) older saves. What is kept:
   the party (stats, skills, belongings, hunger), coins, requests, the
-  relics' fates, who has heard what, the journal, the opened shafts, and
+  relics' fates, who has heard what, the journal, the opened shafts, the
+  weapon rack and the heavy blows learned, and
   for every floor visited: what lies on it, its doors and levers, the
   guardians broken for good, and the cells explored.
 Enemies are not kept: the dead rise again on every delve.
@@ -14,7 +15,8 @@ import os
 
 import pyxel
 
-from objects import Item
+from objects import Item, cell_center
+from tables import HABIT_TOP, REQUESTS, note_kind
 from things import Thing
 
 VERSION = 1
@@ -65,6 +67,7 @@ def dump(world):
             "items": [dict(thing_out(it.thing), x=it.x, z=it.z, yaw=it.yaw) for it in fl.items if not it.moving],
             "doors": {cell_key(c): [door.target_open, door.lock] for c, door in fl.doors.items()},
             "switches": {cell_key(c): sw.on for c, sw in fl.switches.items()},
+            "placed": [[kind, x, y] for (x, y), kind in fl.d.items],  # the map's own items, as the map was then
             "broken": sorted(fl.broken | {e.slot for e in fl.enemies if not e.alive and getattr(e, "slot", None) is not None}),
         }
     return {
@@ -80,6 +83,9 @@ def dump(world):
         "journal": [list(e) for e in world.journal],
         "ending": world.ending,
         "shortcuts": world.shortcuts,
+        "armory": world.armory,
+        "store": world.store,
+        "techniques": sorted(world.techniques),
         "explored": {name: sorted(cell_key(c) for c in cells) for name, cells in world.explored.items()},
         "floors": floors,
     }
@@ -104,6 +110,11 @@ def restore(world, data):
     world.journal = [tuple(e) for e in data["journal"]]
     world.ending = data["ending"]
     world.shortcuts = list(data["shortcuts"])
+    world.armory = list(data.get("armory", ["spear"]))  # saves from before P10 had no rack
+    world.techniques = set(data.get("techniques", []))
+    world.store = dict(data.get("store", {}))
+    for m in world.party.members:  # skills now stop at HABIT_TOP
+        m.level = {s: min(lv, HABIT_TOP) for s, lv in m.level.items()}
     world.explored = {name: {cell_of_key(k) for k in cells} for name, cells in data["explored"].items()}
     world.floors.clear()
     for name, saved in data["floors"].items():
@@ -114,6 +125,8 @@ def restore(world, data):
             fl.remove_item(it)
         for d in saved["items"]:
             fl.add_item(Item(thing_in(d), d["x"], d["z"], yaw=d["yaw"]))
+        for item in new_on_map(fl, saved.get("placed"), data):
+            fl.add_item(item)
         for k, (target_open, lock) in saved["doors"].items():
             door = fl.doors[cell_of_key(k)]
             door.target_open, door.lock = target_open, lock
@@ -125,6 +138,32 @@ def restore(world, data):
     world.player.solid = world.floor.solid
     world.surface = True
     world.delve = dict(log=len(world.relic_log), coins=world.coins, opened=None)
+
+
+def new_on_map(fl, placed, data):
+    """Items the map has gained since the game was saved (a later version of the game added them)."""
+    if placed is not None:
+        old = {(kind, x, y) for kind, x, y in placed}
+        fresh = [(cell, kind) for cell, kind in fl.d.items if (kind, *cell) not in old]
+    else:  # a save from before maps were remembered: add only kinds the saved game has never seen
+        fresh = [(cell, kind) for cell, kind in fl.d.items if kind not in kinds_known(data)]
+    return [Item(kind, *cell_center(cell)) for cell, kind in fresh]
+
+
+def kinds_known(data):
+    """Every kind of thing a saved game mentions: lying anywhere, carried, delivered, or settled."""
+    things = [data["hand"], data["back"]]
+    for m in data["party"]:
+        things += list(m["equip"].values()) + m["pack"]
+    for saved in data["floors"].values():
+        things += saved["items"]
+    known = {t["kind"] for t in things if t is not None}
+    known |= {REQUESTS[rid]["item"] for rid in data["quests"] if rid in REQUESTS}
+    known |= {note_kind(rid) for rid in data["quests"]}
+    known |= {r[0] for r in data["relic_log"]}
+    if data.get("techniques"):
+        known.add("drill_book")  # read and learned
+    return known
 
 
 def write(world, file=None):

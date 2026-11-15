@@ -65,7 +65,7 @@ def climb(cell):
 
 # 1. the menu at the camp
 check(world.surface and world.report is None, "a new game starts at the camp")
-check([a for a, _, _ in menu.rows(world)] == ["scholar", "keeper", "supplies", "pack", "talk", "relic", "down"],
+check([a for a, _, _ in menu.rows(world)] == ["scholar", "keeper", "smith", "supplies", "arms", "pack", "talk", "relic", "down"],
       "no board or counter in the menu")
 check(menu.choose(world, "down") == "down" and menu.choose(world, "pack") == "pack", "the menu opens the way down and the packs")
 menu.choose(world, "scholar")

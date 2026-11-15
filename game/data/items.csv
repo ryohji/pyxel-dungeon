@@ -19,3 +19,7 @@ relic_seal,a bronze seal,,0,0,1,2,0,0,0,0,0,0,青銅の印章
 relic_tablet,a stone tablet,,0,0,1,2,0,0,0,0,0,1,石板
 relic_chronicle,a chronicle page,,0,0,1,2,0,0,0,0,0,0,年代記の一頁
 relic_heart,the heart stone,,0,0,1,2,0,0,0,0,0,0,心臓石
+spear,a spear,hand,5,8,4,7,0,0,0,0,0,0,槍
+maul,a bone maul,hand,7,11,2,4,0,0,0,0,0,0,骨の槌
+bone,a bone,,0,0,1,2,0,0,0,0,0,0,骨
+drill_book,the guards' drill book,,0,0,1,1,0,0,0,0,0,0,番兵の教本

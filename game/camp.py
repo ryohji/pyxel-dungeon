@@ -14,7 +14,7 @@ import lang
 
 from palette import BLACK, FIRE_I, STONE_I, WHITE
 from lang import loc, tr
-from tables import ITEMS, RELICS, REQUESTS, SHOP
+from tables import ITEMS, RECIPES, RELICS, REQUESTS, SHOP, TUNE, WEAPONS
 from things import Thing
 
 X0, Y0, PW, PH = 6, 14, 308, 214
@@ -85,6 +85,81 @@ def restore(world, kind):
     return True
 
 
+def carried(world, kind):
+    """How many things of this kind the party carries."""
+    things = [world.hand, world.back] + [t for m in world.party.members for t in m.pack + list(m.equip.values())]
+    return sum(t is not None and t.kind == kind for t in things)
+
+
+def count(world, kind):
+    """How many the party has: carried, and kept in the camp store."""
+    return carried(world, kind) + world.store.get(kind, 0)
+
+
+def owned(world, kind):
+    return kind in world.armory or carried(world, kind) > 0
+
+
+def wanted(world, material):
+    """Whether the smith still has something to make from this material."""
+    return any(r["material"] == material and not owned(world, r["kind"]) for r in RECIPES)
+
+
+def store_materials(world):
+    """Back at the camp: materials go from the packs into the store. When the smith has no more use
+    for bones, the gravekeeper lays them to rest and pays a little. Returns lines for the report."""
+    lines = []
+    for material in sorted({r["material"] for r in RECIPES} | {"bone"}):
+        n = 0
+        while (found := locate(world, material)) is not None:
+            found[1]()
+            n += 1
+        if n:
+            world.store[material] = world.store.get(material, 0) + n
+            lines.append(("plain", tr("Into the camp store: {name} x{n}.", name=loc(ITEMS[material], "name"), n=n)))
+        kept = world.store.get(material, 0)
+        if material == "bone" and kept and not wanted(world, material):
+            pay = kept * TUNE["bone_coins"]
+            world.store[material] = 0
+            world.coins += pay
+            lines.append(("good", tr("The gravekeeper laid {n} bones to rest: +{pay} coins.", n=kept, pay=pay)))
+    return lines
+
+
+def forge(world, recipe):
+    """The smith makes a weapon from materials and coins; it goes to the weapon rack at the camp."""
+    kind, material, need, price = recipe["kind"], recipe["material"], recipe["count"], recipe["coins"]
+    if count(world, material) < need or world.coins < price:
+        world.messages.add(tr("Not enough to make it."))
+        world.sfx.play("fizzle")
+        return False
+    from_store = min(need, world.store.get(material, 0))
+    world.store[material] = world.store.get(material, 0) - from_store
+    for _ in range(need - from_store):
+        locate(world, material)[1]()
+    world.coins -= price
+    world.armory.append(kind)
+    world.sfx.play("coins")
+    world.messages.add(tr("The smith made {name}. It is on the weapon rack.", name=loc(ITEMS[kind], "name")))
+    return True
+
+
+def wield(world, kind):
+    """Arn takes a weapon from the rack; the one in his hand goes back on it."""
+    f = world.party.fighter
+    old = f.equip["right"]
+    if old is not None and old.kind not in WEAPONS and not f.give(old):
+        world.messages.add(tr("No room in the packs."))
+        return False
+    if old is not None and old.kind in WEAPONS:
+        world.armory.append(old.kind)
+    world.armory.remove(kind)
+    f.equip["right"] = Thing(kind)
+    world.sfx.play("pickup")
+    world.messages.add(tr("Arn takes {name}.", name=loc(ITEMS[kind], "name")))
+    return True
+
+
 def buy(world, kind, price):
     if world.coins < price:
         world.messages.add(tr("Not enough coins."))
@@ -114,7 +189,7 @@ class Row:
 
 class CampScreen:
     def __init__(self):
-        self.kind = None  # 'down', 'supplies' or 'scholar' while open
+        self.kind = None  # 'down', 'supplies', 'smith', 'arms' or 'scholar' while open
         self.sel = 0
 
     @property
@@ -159,6 +234,32 @@ class CampScreen:
                 out.append(Row(tr("Buy {name}", name=name), tr("{n} coins", n=r["price"]),
                                lambda w, k=r["kind"], p=r["price"]: buy(w, k, p),
                                enabled=world.coins >= r["price"]))
+        elif self.kind == "smith":
+            out.append(Row(tr("THE SMITH MAKES"), "", None, heading=True))
+            for r in RECIPES:
+                if owned(world, r["kind"]):
+                    continue  # made already: no need for another
+                have = count(world, r["material"])
+                ok = have >= r["count"] and world.coins >= r["coins"]
+                need = tr("{material} x{n} ({have} at hand) and {coins} coins", material=loc(ITEMS[r["material"]], "name"),
+                          n=r["count"], have=have, coins=r["coins"])
+                out.append(Row(loc(ITEMS[r["kind"]], "name"), tr("{n} coins", n=r["coins"]), lambda w, r=r: forge(w, r),
+                               need + ". " + loc(WEAPONS[r["kind"]], "text"), enabled=ok))
+            if len(out) == 1:
+                out.append(Row(tr("(nothing more to make for now)"), "", None, enabled=False))
+        elif self.kind == "arms":
+            f = world.party.fighter
+            held = f.equip["right"]
+            out.append(Row(tr("IN ARN'S HAND"), "", None, heading=True))
+            out.append(Row(held.name if held is not None else tr("(nothing)"), "", None,
+                           loc(WEAPONS[held.kind], "text") if held is not None and held.kind in WEAPONS else "", enabled=False))
+            out.append(Row(tr("ON THE WEAPON RACK"), "", None, heading=True))
+            for kind in world.armory:
+                w = WEAPONS[kind]
+                out.append(Row(loc(ITEMS[kind], "name"), tr("reach {r}", r=w["reach"]), lambda wo, k=kind: wield(wo, k),
+                               loc(w, "text"), first=True))
+            if not world.armory:
+                out.append(Row(tr("(empty)"), "", None, enabled=False))
         elif self.kind == "scholar":
             out.append(Row(tr("GIVE TO VESK, THE SCHOLAR"), "", None, heading=True))
             for kind, relic in RELICS.items():
@@ -216,7 +317,8 @@ class CampScreen:
         pyxel.rect(X0, Y0, PW, PH, BLACK)
         pyxel.dither(1.0)
         pyxel.rectb(X0, Y0, PW, PH, STONE_I[4])
-        title = {"down": "BEFORE GOING DOWN", "supplies": "SUPPLIES", "scholar": "VESK'S TABLE"}[self.kind]
+        title = {"down": "BEFORE GOING DOWN", "supplies": "SUPPLIES", "smith": "THE SMITH",
+                 "arms": "THE WEAPON RACK", "scholar": "VESK'S TABLE"}[self.kind]
         lang.text(X0 + 8, Y0 + 7, tr(title), FIRE_I[5])
         coins = tr("Coins: {n}", n=world.coins)
         lang.text(X0 + PW - 8 - lang.width(coins), Y0 + 7, coins, FIRE_I[4])

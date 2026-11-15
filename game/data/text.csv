@@ -183,3 +183,29 @@ Supplies,補給
 "Buy torches, bread and water with the coins you earned.",稼いだ硬貨で、松明やパン、水袋を買う。
 "See the requests and take some, then go down the stairs or a shaft you opened.",依頼を見て受けてから、階段か開いた縦穴を下りる。
 Take requests before going down; they are handed over on return.,潜る前に依頼を受ける。品は帰ったときに渡される。
+(empty),（空）
+(nothing),（何もない）
+Arn is too tired for a heavy blow.,アルンは疲れていて大技を出せない。
+Arn knows no heavy blow yet.,アルンはまだ大技を知らない。
+Arn takes {name}.,アルンは{name}を手に取った。
+IN ARN'S HAND,アルンの手に
+Learned from the guards' drill book: the heavy blow (G). It works differently with each weapon.,番兵の教本から大技（G）を覚えた。武器ごとに働きが変わる。
+Not enough to make it.,材料か硬貨が足りない。
+Not with a load on the back.,荷を背負ったままでは出せない。
+ON THE WEAPON RACK,武器棚に
+THE SMITH MAKES,鍛冶屋が作る物
+The smith made {name}. It is on the weapon rack.,鍛冶屋が{name}を作った。武器棚に置いてある。
+The spear is no use with a load on the back: Arn hits with his fist.,荷を背負っていては槍が使えない。アルンは拳で殴った。
+reach {r},間合い {r}
+{material} x{n} ({have} at hand) and {coins} coins,{material}を{n}つ（手元に{have}つ）と硬貨{coins}枚
+{name}'s {skill} habit grows: {lv}/{top}.,{name}は{skill}の技に慣れてきた（{lv}/{top}）。
+THE SMITH,鍛冶屋
+THE WEAPON RACK,武器棚
+The smith,鍛冶屋
+"Weapons made from what you bring back: bones, and later more.",持ち帰った物から武器を作る。いまは骨から。
+The weapon rack,武器棚
+"Choose Arn's weapon: the sword, the spear, or what the smith made.",アルンの武器を選ぶ。剣、槍、鍛冶屋が作った物。
+"heavy blow, once learned (drill book)",大技（番兵の教本を持ち帰ると使える）
+Into the camp store: {name} x{n}.,野営地の蔵に入れた: {name} ×{n}
+The gravekeeper laid {n} bones to rest: +{pay} coins.,墓守が骨{n}本を弔った。弔い代 +{pay}枚
+(nothing more to make for now),（いま作れる物はもうない）

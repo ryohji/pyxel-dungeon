@@ -11,15 +11,16 @@ from dungeon import CELL, SIDES, WALL_H, Dungeon
 from enemies import Guardian, Skeleton, line_of_sight
 from objects import (DOOR_LIFT, ITEM_RADIUS, Carving, Door, Fountain, Item, Niche, Plate, RopeNode, StairsNode, Switch,
                      cell_center, cell_of, open_sides)
-from camp import deliver, locate
+from camp import deliver, locate, store_materials
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
 import records
 import spells
 from lang import loc, tr
-from tables import RELICS, REQUESTS, TUNE, note_kind
+from tables import HABIT_TOP, RELICS, REQUESTS, TUNE, WEAPONS, note_kind
 from textures import tile_image
+from things import Thing
 from view import MAX_DARK, DungeonView
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -35,7 +36,10 @@ TARGET_RANGE = 7 * CELL  # Tab reaches enemies this far away
 ACTIONS = {"item": "take", "switch": "pull", "door": "open / close", "enemy": "attack", "fountain": "drink",
            "carving": "read", "niche": "look"}
 FIXTURES = {"F": Fountain, "K": Carving, "N": Niche}
-ENTRANCE = "floor1"  # the floor the camp's stairs lead down to
+ENTRANCE = "floor1"
+FIST = dict(kind="fist", reach=SWORD_REACH, cooldown=36, stamina=5, stone=1.0, with_load=0.5, load_speed=1.0,
+            tech="sweep", tech_mult=1.0)
+STONE_KINDS = {"guardian"}  # enemies a maul breaks twice as hard  # the floor the camp's stairs lead down to
 SURFACE = "camp"  # where the stairs up from the entrance, and the shafts, come out
 
 
@@ -313,6 +317,9 @@ class World:
         self.coins = TUNE["coins_start"]
         self.quests = {}  # request id -> 'accepted' or 'done'
         self.screen = None  # 'scholar' when a camp screen should open
+        self.armory = ["spear"]  # weapons kept at the camp, to choose from before a delve (Arn holds the sword)
+        self.store = {}  # materials kept at the camp for the smith: kind -> how many
+        self.techniques = set()  # heavy blows learned by bringing their books back ('heavy')
         self.shortcuts = []  # floors whose shaft up to the camp has been climbed: the camp can send you down it
         self.report = None  # [(kind, line)] of what the last delve brought back, shown on reaching the camp
         self.delve = dict(log=0, coins=self.coins, opened=None)  # how things stood when this delve began
@@ -334,6 +341,7 @@ class World:
         self.last_step = 0
         self.rnd = random.Random()
         self.swing = 0  # frames left of the sword-swing overlay
+        self.heavy = 0  # frames left of a heavy blow's overlay
         self.popups = []  # [world pos, text, age, color]
         self.wipe = None  # frames since the party fell
         self.hurt_flash = 0
@@ -341,7 +349,7 @@ class World:
         self.key_target = None  # Hit chosen with Tab
         self.key_pick = None  # (kind, obj) of that choice, to follow it across frames
         self.player.can_run = lambda: not self.party.fighter.tired and self.back is None
-        self.player.speed_scale = lambda: TUNE["carry_speed"] if self.back is not None else 1.0
+        self.player.speed_scale = lambda: (TUNE["carry_speed"] * self.weapon()["load_speed"]) if self.back is not None else 1.0
 
     def get_floor(self, name):
         if name not in self.floors:
@@ -449,6 +457,12 @@ class World:
             if self.carried(kind):
                 report.append(("relic", tr("{name}: brought back. Give it to Vesk, or take it down to a niche.",
                                            name=loc(RELICS[kind], "name"))))
+        report += store_materials(self)
+        found = locate(self, "drill_book")
+        if found is not None and "heavy" not in self.techniques:
+            found[1]()
+            self.techniques.add("heavy")
+            report.append(("good", tr("Learned from the guards' drill book: the heavy blow (G). It works differently with each weapon.")))
         if self.back is not None and self.back.kind not in RELICS:
             report.append(("good", tr("On Arn's back: {name}", name=self.back.name)))
         if self.delve["opened"]:
@@ -492,6 +506,7 @@ class World:
         self.party.tick()
         self.party.needs(self.messages)
         self.swing = max(0, self.swing - 1)
+        self.heavy = max(0, self.heavy - 1)
         self.hurt_flash = max(0, self.hurt_flash - 1)
         if clicked or mouse_moved:
             self.mode = "mouse"
@@ -602,7 +617,7 @@ class World:
         p = self.player
         yr = math.radians(p.yaw)
         fx, fz = math.sin(yr), -math.cos(yr)
-        best, best_d = None, SWORD_REACH
+        best, best_d = None, self.weapon()["reach"]
         for e in self.floor.enemies:
             dx, dz = e.x - p.x, e.z - p.z
             d = math.hypot(dx, dz)
@@ -610,27 +625,97 @@ class World:
                 best, best_d = e, d
         return best
 
+    def weapon(self):
+        """How Arn's weapon swings (data/weapons.csv); a fist when the right hand holds none."""
+        t = self.party.fighter.equip["right"]
+        if t is not None and t.kind in WEAPONS:
+            return WEAPONS[t.kind]
+        return FIST
+
+    def _blow(self):
+        """Damage of one blow with the weapon in hand, before any heavy-blow multiplier."""
+        f = self.party.fighter
+        w = self.weapon()
+        weapon = f.equip["right"]
+        if weapon is not None and weapon.row["damage_max"] > 0 and not (self.back is not None and w["with_load"] == 0):
+            lo, hi = weapon.row["damage_min"], weapon.row["damage_max"]
+        else:
+            lo, hi = TUNE["fist_min"], TUNE["fist_max"]
+        amount = self.rnd.randint(lo, hi) + f.bonus("str", "str_per_damage", "fighter") + self.party.ward("fire")
+        if f.tired or (self.back is not None and w["with_load"] > 0):
+            amount = max(1, amount // 2)
+        return amount
+
+    def _hit(self, enemy, amount):
+        if enemy.KIND in STONE_KINDS:
+            amount = round(amount * self.weapon()["stone"])
+        p = self.player
+        self._damage_enemy(enemy, amount, p.x, p.z, self.party.fighter, "fighter")
+
     def attack(self, enemy):
         """Swing the weapon in Arn's right hand (or a fist), hitting enemy if it is within reach."""
         f = self.party.fighter
         if not f.up or f.cooldown:
             return
-        tired = f.tired
-        f.stamina = max(0.0, f.stamina - TUNE["stamina_swing"])
-        f.busy(max(12, TUNE["swing_cooldown"] - (f.level["fighter"] - 1) * TUNE["swing_cooldown_per_level"]))
+        w = self.weapon()
+        f.stamina = max(0.0, f.stamina - w["stamina"])
+        f.busy(max(12, w["cooldown"] - (f.level["fighter"] - 1) * TUNE["swing_cooldown_per_level"]))
         self.swing = 12
         self.sfx.play("swing")
+        reach = w["reach"]
+        if self.back is not None and w["with_load"] == 0:
+            self.messages.add(tr("The spear is no use with a load on the back: Arn hits with his fist."))
+            reach = FIST["reach"]
         p = self.player
-        if enemy is not None and enemy.alive and math.hypot(enemy.x - p.x, enemy.z - p.z) <= SWORD_REACH:
-            weapon = f.equip["right"]
-            if weapon is not None and weapon.row["damage_max"] > 0:
-                lo, hi = weapon.row["damage_min"], weapon.row["damage_max"]
-            else:
-                lo, hi = TUNE["fist_min"], TUNE["fist_max"]
-            amount = self.rnd.randint(lo, hi) + f.bonus("str", "str_per_damage", "fighter") + self.party.ward("fire")
-            if tired or self.back is not None:
-                amount = max(1, amount // 2)
-            self._damage_enemy(enemy, amount, p.x, p.z, f, "fighter")
+        if enemy is not None and enemy.alive and math.hypot(enemy.x - p.x, enemy.z - p.z) <= reach:
+            self._hit(enemy, self._blow())
+
+    def heavy_blow(self):
+        """G: the heavy blow learned from the drill book. What it does depends on the weapon."""
+        f = self.party.fighter
+        if "heavy" not in self.techniques:
+            self.messages.add(tr("Arn knows no heavy blow yet."))
+            return
+        if not f.up or f.cooldown or self.hitstop or self.travel is not None or self.wipe is not None:
+            return
+        if self.back is not None:
+            self.messages.add(tr("Not with a load on the back."))
+            return
+        if f.stamina < TUNE["tech_stamina"]:
+            self.messages.add(tr("Arn is too tired for a heavy blow."))
+            return
+        w = self.weapon()
+        f.stamina -= TUNE["tech_stamina"]
+        f.busy(TUNE["tech_cooldown"])
+        self.swing = 12
+        self.heavy = 12
+        self.sfx.play("swing")
+        self.shake = max(self.shake, 0.25)
+        p = self.player
+        yr = math.radians(p.yaw)
+        fx, fz = math.sin(yr), -math.cos(yr)
+        mult = w["tech_mult"] if w is not FIST else 1.0
+        tech = w["tech"]
+        for e in list(self.floor.enemies):
+            if not e.alive:
+                continue
+            dx, dz = e.x - p.x, e.z - p.z
+            d = math.hypot(dx, dz)
+            ahead = dx * fx + dz * fz
+            if tech == "sweep":
+                struck = d <= w["reach"] + 20 and ahead > 0
+            elif tech == "thrust":
+                struck = 0 < ahead <= w["reach"] * 1.6 and abs(dx * fz - dz * fx) < 30 + e.RADIUS
+            else:  # quake: the target hard, everyone around shaken
+                struck = d <= w["reach"] and ahead > d * 0.5
+                if not struck and d <= TUNE["quake_radius"]:
+                    e.hurt(1, p.x, p.z)
+                    e.cooldown = max(getattr(e, "cooldown", 0), 45)
+                    if e.state == "attack":
+                        e._set("chase")
+                    continue
+            if struck:
+                self._hit(e, round(self._blow() * mult))
 
     def _damage_enemy(self, enemy, amount, from_x, from_z, by=None, skill=None):
         killed = enemy.hurt(amount, from_x, from_z)
@@ -646,6 +731,8 @@ class World:
         self._popup(enemy.center + Vec3(0, 25, 0), str(amount), 1)
         if killed:
             self.messages.add(tr("The {name} falls apart.", name=enemy.called))
+            if enemy.KIND == "skeleton" and self.rnd.random() < TUNE["bone_drop"]:
+                self.floor.add_item(Item(Thing("bone"), enemy.x + self.rnd.uniform(-10, 10), enemy.z + self.rnd.uniform(-10, 10)))
         if by is not None:
             self.award(by, skill, amount * TUNE["xp_hit"] + (TUNE["xp_kill"] if killed else 0))
 
@@ -653,11 +740,11 @@ class World:
         self.hitstop = max(self.hitstop, int(frames))
 
     def award(self, member, skill, xp):
-        """Experience for a skill; announce any level reached."""
+        """Practice in a skill; announce a habit grown (skills grow by use, up to HABIT_TOP)."""
         if xp <= 0:
             return
         for lv in member.gain_xp(skill, xp):
-            self.messages.add(tr("{name} is now a level {lv} {skill}!", name=member.called, lv=lv, skill=tr(skill)))
+            self.messages.add(tr("{name}'s {skill} habit grows: {lv}/{top}.", name=member.called, lv=lv, skill=tr(skill), top=HABIT_TOP))
             self.sfx.play("levelup")
 
     def _popup(self, pos, text, kind):

@@ -387,6 +387,20 @@ class ItemNode(Node):
             b(_at(n / 2 + 4, 1.5, 0), Vec3(n, 2, 5), STONE_I[6])
             b(_at(3, 2, 0), Vec3(3, 3, 14), FIRE_I[2])
             b(_at(-5, 2, 0), Vec3(12, 3, 3), EARTH_I[2])
+        elif kind == "spear":
+            b(_at(8, 1.5, 0), Vec3(70, 3, 3), EARTH_I[3])
+            b(_at(48, 1.5, 0), Vec3(12, 2, 6), STONE_I[6])
+        elif kind == "maul":
+            b(_at(-4, 2, 0), Vec3(44, 4, 4), EARTH_I[4])
+            b(_at(20, 7, 0), Vec3(12, 14, 20), STONE_I[6])
+        elif kind == "bone":
+            b(_at(0, 2, 0, 25), Vec3(26, 3, 4), STONE_I[7])
+            for dx in (-13, 13):
+                b(_at(dx * 0.9, 2.5, dx * 0.42, 25), Vec3(6, 5, 7), STONE_I[7])
+        elif kind == "drill_book":
+            b(_at(0, 2, 0, 10), Vec3(20, 4, 26), FIRE_I[1])
+            b(_at(1, 2.2, 0, 10), Vec3(18, 4, 24), EARTH_I[6])
+            b(_at(0, 4.3, 0, 10), Vec3(20, 0.5, 26), EARTH_I[3])
         elif kind == "buckler":
             b(_at(0, 2, 0), Vec3(22, 4, 22), EARTH_I[3])
             b(_at(0, 2, 0, 45), Vec3(22, 3.5, 22), EARTH_I[3])

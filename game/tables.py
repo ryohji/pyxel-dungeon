@@ -1,12 +1,14 @@
 """Game numbers that are meant to be tuned, read from the CSV files in data/.
 
   members.csv  starting stats and skill levels of each party member
-  skills.csv   for each skill and level: total xp needed, and the stats gained
+  skills.csv   for each skill and habit (up to 5): total practice needed, and the stats gained
   items.csv    what each kind of item is and does
   kit.csv      what each member starts with (slot: right, left, head, body, pack)
   spells.csv   the 16 rune spells (element x shape)
   requests.csv errands to bring things back: from the camp board, or from notes
-  shop.csv     what the camp counter sells
+  shop.csv     what the camp sells (Supplies)
+  weapons.csv  how each weapon swings: reach, speed, stamina, its heavy blow
+  recipes.csv  what the smith makes, from what
   relics.csv   the five relics of the old kingdom: lore, and the camp's reactions
   lines.csv    other lines of story text (introductions, endings)
   enemies.csv  each kind of enemy: health, speed, reach, timing, damage
@@ -61,6 +63,9 @@ def xp_for(skill, level):
 
 REQUESTS = {r["id"]: r for r in rows("requests.csv")}  # source: board, or note (found in the dungeon)
 SHOP = rows("shop.csv")
+WEAPONS = {r["kind"]: r for r in rows("weapons.csv")}
+RECIPES = rows("recipes.csv")
+HABIT_TOP = 5  # skills grow by use up to this habit
 
 
 def note_kind(request_id):
@@ -92,6 +97,8 @@ def reload():
         table.sort()
     REQUESTS.clear(); REQUESTS.update({r["id"]: r for r in rows("requests.csv")})
     SHOP[:] = rows("shop.csv")
+    WEAPONS.clear(); WEAPONS.update({r["kind"]: r for r in rows("weapons.csv")})
+    RECIPES[:] = rows("recipes.csv")
     RELICS.clear(); RELICS.update({r["kind"]: r for r in rows("relics.csv")})
     LINES.clear(); LINES.update({r["key"]: r for r in rows("lines.csv")})
     ENEMIES.clear(); ENEMIES.update({r["kind"]: r for r in rows("enemies.csv")})

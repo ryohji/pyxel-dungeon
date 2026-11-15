@@ -22,6 +22,7 @@
 @item 20,2 torch
 @item 17,9 bread
 @item 24,13 buckler
+@item 16,13 drill_book
 @item 24,9 remains_brenn
 @item 19,1 lantern
 @item 18,9 relic_seal

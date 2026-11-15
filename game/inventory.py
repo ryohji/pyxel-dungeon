@@ -11,7 +11,7 @@ import lang
 from lang import tr
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, RED, STONE_I, WHITE
 from party import PACK_SIZE, SLOTS
-from tables import SKILLS, TUNE
+from tables import HABIT_TOP, SKILLS, TUNE, WEAPONS
 from textures import ICON, draw_icon
 
 X0, Y0, PW, PH = 6, 14, 308, 214
@@ -163,12 +163,16 @@ class Inventory:
         for i, s in enumerate(SKILLS):
             sx = x + (i % 2) * 72
             sy = yy + (i // 2) * 8
-            pyxel.text(sx, sy, f"{s.capitalize():8}{m.level[s]}", FIRE_I[4])
+            pyxel.text(sx, sy, s.capitalize(), FIRE_I[4])
             nxt = next_xp(m, s)
-            if nxt:
-                done = (m.xp[s] - nxt[0]) / max(1, nxt[1] - nxt[0])
-                pyxel.rect(sx + 44, sy + 2, 20, 1, STONE_I[2])
-                pyxel.rect(sx + 44, sy + 2, round(20 * min(1, done)), 1, FIRE_I[3])
+            done = 0.0 if not nxt else min(1.0, (m.xp[s] - nxt[0]) / max(1, nxt[1] - nxt[0]))
+            for k in range(HABIT_TOP):  # the habit: filled pips, and the next one filling up
+                px = sx + 34 + k * 6
+                pyxel.rect(px, sy + 1, 4, 4, STONE_I[2])
+                if k < m.level[s]:
+                    pyxel.rect(px, sy + 1, 4, 4, FIRE_I[4])
+                elif k == m.level[s] and done > 0:
+                    pyxel.rect(px, sy + 5 - max(1, round(4 * done)), 4, max(1, round(4 * done)), FIRE_I[2])
         lang.text(x, y + 126, tr("PACK"), STONE_I[5])
 
     def _slot(self, s, chosen):
@@ -203,6 +207,8 @@ def describe(thing):
         parts.append(tr("hits {a}-{b}", a=r["damage_min"], b=r["damage_max"]))
     if r["throw_max"] >= 4:
         parts.append(tr("thrown {a}-{b}", a=r["throw_min"], b=r["throw_max"]))
+    if thing.kind in WEAPONS:
+        parts.append(tr("reach {r}", r=WEAPONS[thing.kind]["reach"]))
     if r["defense"]:
         parts.append(tr("armor {n}", n=r["defense"]))
     if r["food"]:

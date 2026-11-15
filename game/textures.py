@@ -79,7 +79,8 @@ def make_atlas():
 ICON = 16
 ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin",
          "ring", "lantern", "note", "remains", "idol",
-         "relic_shard", "relic_seal", "relic_tablet", "relic_chronicle", "relic_heart")
+         "relic_shard", "relic_seal", "relic_tablet", "relic_chronicle", "relic_heart",
+         "spear", "maul", "bone", "drill_book")
 
 
 def make_icons():
@@ -218,6 +219,33 @@ def make_icons():
     img.tri(o + 3, 8, o + 13, 8, o + 8, 14, RED_DARK)
     img.circ(o + 6, 6, 1, FIRE_I[4])
     img.pset(o + 7, 9, FIRE_I[5])
+
+    o = at("spear")
+    img.line(o + 1, 15, o + 11, 5, E[3])
+    img.line(o + 2, 15, o + 12, 5, E[2])
+    img.tri(o + 10, 3, o + 13, 6, o + 15, 0, S[6])
+    img.pset(o + 14, 1, S[7])
+
+    o = at("maul")
+    img.line(o + 2, 15, o + 9, 6, E[4])
+    img.line(o + 3, 15, o + 10, 6, E[3])
+    img.rect(o + 6, 1, 9, 7, S[6])
+    img.rect(o + 7, 2, 7, 5, S[7])
+    img.pset(o + 8, 3, S[5])
+
+    o = at("bone")
+    img.line(o + 3, 12, o + 12, 3, S[7])
+    img.line(o + 4, 12, o + 13, 3, S[6])
+    for cx, cy in ((3, 12), (12, 3)):
+        img.circ(o + cx, cy, 2, S[7])
+        img.pset(o + cx, cy, S[5])
+
+    o = at("drill_book")
+    img.rect(o + 2, 2, 12, 12, FIRE_I[1])
+    img.rect(o + 3, 3, 10, 10, E[3])
+    img.rect(o + 2, 2, 2, 12, E[1])
+    img.line(o + 6, 6, o + 11, 10, S[6])  # crossed blades on the cover
+    img.line(o + 11, 6, o + 6, 10, S[6])
     return img
 
 

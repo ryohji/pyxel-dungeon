@@ -150,6 +150,8 @@ class App:
             return
         if self.runes.update(self.world, mx, my, clicked):
             clicked = False  # the click was on the rune panel, not the dungeon
+        if pyxel.btnp(pyxel.KEY_G):
+            self.world.heavy_blow()
         self.world.update(mx, my, clicked, attack_key=space, tab=tab, mouse_moved=moved)
         self.take_pages()
         self.keep()
@@ -161,7 +163,7 @@ class App:
             self.journal.show(self.world)
             return
         opened = self.surface.update(self.world, mx, my, clicked, space, tab, moved)
-        if opened in ("down", "supplies"):
+        if opened in ("down", "supplies", "smith", "arms"):
             self.camp.show(opened)
         elif opened == "pack":
             self.inventory.open = True
@@ -347,16 +349,59 @@ class App:
             x += 26
 
     def draw_sword(self):
-        """The sword sweeping across the view while Arn swings, with a faint trail."""
-        s = self.world.swing
+        """Arn's weapon while he swings (a sweep, a thrust or a heavy fall), with a faint trail."""
+        w = self.world
+        s = w.swing
         if not s:
             return
+        t = w.party.fighter.equip["right"]
+        kind = t.kind if t is not None else "fist"
         k = 1 - s / 12
-        for lag, alpha in ((0.24, 0.25), (0.12, 0.5), (0.0, 1.0)):
-            if k - lag < 0:
-                continue
-            self._blade(math.radians(-80 - 85 * (k - lag)), alpha)
+        heavy = w.heavy > 0
+        if kind == "spear":
+            for lag, alpha in ((0.2, 0.35), (0.0, 1.0)):
+                if k - lag >= 0:
+                    self._spear(math.sin(math.pi * min(1, (k - lag) * 1.4)), alpha)
+        elif kind == "maul":
+            for lag, alpha in ((0.24, 0.25), (0.12, 0.5), (0.0, 1.0)):
+                if k - lag >= 0:
+                    self._maul(math.radians(-150 + 80 * min(1, (k - lag) * 1.3) ** 2), alpha)
+        else:
+            sweep = 150 if heavy else 85
+            for lag, alpha in ((0.24, 0.25), (0.12, 0.5), (0.0, 1.0)):
+                if k - lag >= 0:
+                    self._blade(math.radians(-80 - sweep * (k - lag)), alpha)
         pyxel.dither(1.0)
+
+    def _spear(self, out, alpha):
+        """The spear thrust from the lower right towards the middle; out runs 0 -> 1 -> 0."""
+        bx, by = W * 0.8 - out * 50, H + 20 - out * 70
+        tx, ty = W * 0.56 - out * 20, H * 0.62 - out * 40
+        pyxel.dither(alpha)
+        for i in range(-4, 5):  # the shaft, thick near the hand and thinner towards the head
+            pyxel.line(bx + i, by, tx + i * 0.3, ty, EARTH_I[3] if abs(i) < 3 else EARTH_I[2])
+        dx, dy = tx - bx, ty - by
+        n = math.hypot(dx, dy)
+        dx, dy = dx / n, dy / n
+        hx, hy = tx + dx * 26, ty + dy * 26
+        pyxel.tri(tx - dy * 7, ty + dx * 7, tx + dy * 7, ty - dx * 7, hx, hy, STONE_I[6])
+        if alpha == 1.0:
+            pyxel.line(tx, ty, hx, hy, STONE_I[7])
+
+    def _maul(self, a, alpha):
+        """The maul falling from up high on the right."""
+        px, py = W * 0.92, H + 30
+        dx, dy = math.cos(a), math.sin(a)
+        nx, ny = -dy, dx
+        hx, hy = px + dx * 170, py + dy * 170
+        pyxel.dither(alpha)
+        for i in range(-2, 3):
+            pyxel.line(px + nx * i, py + ny * i, hx + nx * i, hy + ny * i, EARTH_I[3])
+        for r, col in ((22, STONE_I[6]), (17, STONE_I[7])):
+            pyxel.tri(hx + nx * r + dx * 14, hy + ny * r + dy * 14, hx - nx * r + dx * 14, hy - ny * r + dy * 14,
+                      hx - nx * r - dx * 14, hy - ny * r - dy * 14, col)
+            pyxel.tri(hx + nx * r + dx * 14, hy + ny * r + dy * 14, hx + nx * r - dx * 14, hy + ny * r - dy * 14,
+                      hx - nx * r - dx * 14, hy - ny * r - dy * 14, col)
 
     def _blade(self, a, alpha):
         px, py = W * 0.9, H + 40

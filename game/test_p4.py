@@ -56,7 +56,7 @@ hp0, str0 = arn.max_hp, arn.stats["str"]
 world.award(arn, "fighter", need)
 check(arn.level["fighter"] == lv, f"fighter level {lv} reached")
 check(arn.max_hp == hp0 + gains["hp"] and arn.stats["str"] == str0 + gains["str"], "stats grew as skills.csv says")
-check("levelup" in sfx.played and any("level" in t for t, _ in world.messages.visible()), "level-up announced")
+check("levelup" in sfx.played and any("habit grows" in t for t, _ in world.messages.visible()), "the habit growing is announced")
 
 # 3. armor softens blows
 hp = arn.hp

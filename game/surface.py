@@ -1,8 +1,9 @@
 """The camp above the dungeon, as one menu screen over a picture of it at dusk.
 
 Coming up from a delve, the first thing shown is what it brought back
-(world.report). Then the menu: Vesk, the gravekeeper, supplies, belongings,
-the two journals, and the way down. 1-7, Tab and Space, or the mouse choose.
+(world.report). Then the menu: Vesk, the gravekeeper, the smith, supplies,
+the weapon rack, belongings, the two journals, and the way down. 1-9, Tab
+and Space, or the mouse choose.
 The way down opens a screen (camp.py) with the requests and where to go down.
 """
 
@@ -18,13 +19,16 @@ W, H = 320, 240
 MENU = [  # (action, label, what it is for)
     ("scholar", "Vesk, the scholar", "Talk. Give Vesk a relic and its power comes back to the hill."),
     ("keeper", "The gravekeeper", "Talk. The gravekeeper tends the dead of the hill."),
+    ("smith", "The smith", "Weapons made from what you bring back: bones, and later more."),
     ("supplies", "Supplies", "Buy torches, bread and water with the coins you earned."),
+    ("arms", "The weapon rack", "Choose Arn's weapon: the sword, the spear, or what the smith made."),
     ("pack", "Belongings", "Equip, eat and drink, sort the packs."),
     ("talk", "What people said", "Read again what Vesk and the gravekeeper told you."),
     ("relic", "Relics", "The relics found so far: their lore, and what became of each."),
     ("down", "Into the dungeon", "See the requests and take some, then go down the stairs or a shaft you opened."),
 ]
-NUM_KEYS = (pyxel.KEY_1, pyxel.KEY_2, pyxel.KEY_3, pyxel.KEY_4, pyxel.KEY_5, pyxel.KEY_6, pyxel.KEY_7)
+NUM_KEYS = (pyxel.KEY_1, pyxel.KEY_2, pyxel.KEY_3, pyxel.KEY_4, pyxel.KEY_5, pyxel.KEY_6, pyxel.KEY_7, pyxel.KEY_8,
+            pyxel.KEY_9)
 MX, MY, MW = 8, 26, 150
 REPORT_COLORS = {"good": FIRE_I[5], "relic": STONE_I[7], "bad": STONE_I[5], "plain": WHITE}  # the words
 MARK_COLORS = {"good": FIRE_I[4], "relic": BLUE_I[2], "bad": RED, "plain": WHITE}  # the dot before them
@@ -53,7 +57,7 @@ class SurfaceScreen:
         return MX, MY, MW
 
     def update(self, world, mx, my, clicked, space, tab, moved):
-        """Returns what the app should open ('down', 'supplies', 'pack', 'talk', ...) or None."""
+        """Returns what the app should open ('down', 'supplies', 'smith', 'arms', 'pack', 'talk', ...) or None."""
         self.t += 1
         if world.report is not None:  # what this delve brought back: any key or a click goes on
             if clicked or space or pyxel.btnp(pyxel.KEY_RETURN) or pyxel.btnp(pyxel.KEY_ESCAPE):
@@ -225,6 +229,16 @@ def draw_camp(t):
     for i in range(3):  # sparks rising
         k = (t * 0.7 + i * 23) % 40
         pyxel.pset(fx + math.sin(k * 0.3 + i) * 4, fy - 14 - k, FIRE_I[5] if k < 25 else FIRE_I[3])
+    # the smith's corner: an anvil, a glowing forge, the smith in a leather apron
+    pyxel.rect(64, 196, 18, 14, STONE_I[3])
+    pyxel.rect(67, 192, 12, 5, STONE_I[2])
+    glow = FIRE_I[4] if t // 7 % 3 else FIRE_I[5]
+    pyxel.rect(70, 199, 8, 5, glow)
+    pyxel.rect(88, 204, 12, 3, STONE_I[5])  # the anvil
+    pyxel.rect(92, 207, 4, 6, STONE_I[4])
+    pyxel.rect(106, 200, 9, 14, EARTH_I[2])
+    pyxel.rect(107, 193, 7, 7, EARTH_I[6])
+    pyxel.rect(106, 205, 9, 9, EARTH_I[4])
     # Vesk (blue robe) and the gravekeeper (grey), sitting by the fire
     for x, robe, hood in ((190, BLUE_I[2], BLUE_I[1]), (236, STONE_I[3], STONE_I[2])):
         pyxel.rect(x - 4, 202, 9, 12, robe)
