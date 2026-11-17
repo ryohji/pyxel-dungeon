@@ -101,11 +101,15 @@ def cast(world, caster, runes):
     elif shape == "ward":
         world.party.add_ward(element, frames(row, power), row["amount_min"] * power)
         msgs.add(tr("{spell} surrounds the party.", spell=loc(row, "name")))
+        if element == "fire":
+            world.relight_torches()
     elif shape == "burst":
         burst(world, caster, element, row, power)
     elif shape == "wall":
         fl.add_field(Field(element, cell, frames(row, power), amount(row, power)))
         msgs.add(loc(row, "name") + tr("!"))
+        if element == "fire":
+            world.ignite([(cell[0] + dx, cell[1] + dy) for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))])
     return "cast"
 
 
@@ -131,6 +135,9 @@ def burst(world, caster, element, row, power):
         world.messages.add(tr("{spell}: the party's wounds close.", spell=loc(row, "name")))
         return
     world.sfx.play(SOUND[element])
+    if element == "fire":
+        reach = TUNE["burst_radius"] + CELL / 2
+        world.ignite([c for c in fl.fixtures if math.hypot(*(a - b for a, b in zip(cell_center(c), (p.x, p.z)))) <= reach])
     for e in fl.enemies:
         if e.alive and math.hypot(e.x - p.x, e.z - p.z) <= TUNE["burst_radius"]:
             strike(world, e, caster, element, row, power, p.x, p.z)

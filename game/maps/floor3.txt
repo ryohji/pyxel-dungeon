@@ -1,36 +1,51 @@
-; Floor 3 - the hall of the king under the hill
-; H  an old shaft with a rope up to the camp: climb it once and the camp can send you down it
-##############################
-#######H......K.........######
-#######.#..#.......#..#.######
-#######.................######
-#######.#..#.......#..#.N#####
-#######.................######
-##################D###########
-##################.###########
-#......###########.###########
-K......D...........S##########
-#......###########.###########
-#......##########.....########
-#################.....F#######
-#################.....########
-#################..U..########
-##############################
+; Floor 3 - the catacombs of the King's household (P11)
+; L sconce, C coffin, B bookshelf
+##L##############B#B############
+#U..#C#C#L#C#C##.....###########
+#..............D.....B##########
+#...#C#C#C#C#C.#.....###########
+##############.##B#B############
+##############.#################
+##############.#################
+##C#########L#.#################
+#...#C#C##.........#############
+N..................K############
+#...#C#C##.........#############
+##C###########D#################
+##########L###.###L#############
+########.............###########
+########.............###########
+#######C.............C##########
+########.............###########
+#######C.............C##########
+########...........X.###########
+##########L#######L#############
+################################
 @above floor2
-; the lever in the corridor opens the great hall
-@link 19,9 18,6 toggle
-@item 2,10 relic_chronicle
-@item 14,2 relic_heart
-@item 18,13 torch
-@item 20,11 bread
-@enemy 4,9 skeleton 90
-@enemy 3,11 skeleton 0
-@enemy 12,9 skeleton 270
-@enemy 16,3 guardian 180
-@guardian 10,3 180
-@guardian 20,3 180
-@guardian 18,8 180
-@text 14,1 Here sits the King Under the Hill. The hill is his throne, and his servant, and his grave.
-@text_ja 14,1 ここに丘の下の王が座す。丘は王の玉座であり、しもべであり、墓である。
-@text 0,9 The river people came with fire. The King spoke, and the ground opened, and the river ran the other way.
-@text_ja 0,9 川の民が火を持って来た。王が言葉を発すると、大地は裂け、川は逆さに流れた。
+@below floor4
+; sconces: L in a wall; @sconce X,Y lit starts it burning. Coffins: C in a wall.
+@sconce 2,0 lit
+@sconce 12,7 lit
+@library 16,1 20,3
+@boss 14,16 lord 0
+@gate 14,9 180
+@enemy 9,9 moth
+@enemy 16,9 moth
+@enemy 14,15 moth
+@item 3,10 corpse_wax
+@item 8,9 corpse_wax
+@item 20,13 remains_ancestor
+@item 17,9 bread
+@item 1,3 torch
+@text 19,9 Here the King's servants sleep in the dark. Keep a flame by them, or they will rise to serve again.
+@text_ja 19,9 ここに王のしもべたちが闇の中で眠る。そばに火を絶やすな。さもなくば、彼らは再び仕えるために起き上がる。
+@text 17,0 The King's household, by name and rank. The ink is brown with age; the list runs on for pages.
+@text_ja 17,0 王の家人の名と位。墨は古びて茶色く、名簿は何頁も続く。
+@text 19,0 A book of hours for the Hill: when to feed it, when to sing to it, when to let it sleep.
+@text_ja 19,0 丘のための時祷書。いつ食を捧げ、いつ歌い、いつ眠らせるか。
+@text 17,4 On the crown: 'Who wears it speaks for the hill. Who breaks it silences it.' The shard is the crown's broken piece.
+@text_ja 17,4 王冠について。「これを戴く者は丘に代わって語る。これを砕く者は丘を黙らせる。」あの欠片は砕かれた王冠の一片である。
+@text 19,4 On the seal: 'Pressed on the coffins of the household, it bids the dead to sleep until the King calls.'
+@text_ja 19,4 印章について。「家人の棺に押せば、王が呼ぶまで死者は眠る。」
+@text 21,2 On the heart stone: 'The hill's heart, kept beneath the throne. Set it in the throne and the King wakes.'
+@text_ja 21,2 心臓石について。「丘の心臓。玉座の下に納められている。玉座に据えれば王は目覚める。」

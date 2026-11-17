@@ -79,6 +79,7 @@ class NullSfx:
         self.played = []
 
     def play(self, name, volume=1.0, dist=0.0):
+        assert name in CHANNEL, f"no such sound: {name}"
         self.played.append(name)
 
     def ambience(self):

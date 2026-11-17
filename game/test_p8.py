@@ -128,19 +128,19 @@ tick(40)
 world._take(next(it for it in world.floor.items if it.kind == "idol" and it.thing.lost))
 check(world.back.kind == "idol" and not world.back.lost, "taken back: no longer marked as lost")
 
-# 5. the shaft on floor 3: climbing it opens a way down from the camp
+# 5. the shaft on floor 4: climbing it opens a way down from the camp
 world.back = None
-world.floor = world.get_floor("floor3")
+world.floor = world.get_floor("floor4")
 p.solid = world.floor.solid
 climb((7, 1))
-check(world.surface and world.shortcuts == ["floor3"], "climbed the shaft: it is open now")
-check(any("shaft from floor 3" in line for _, line in world.report), "the report tells of the shaft")
+check(world.surface and world.shortcuts == ["floor4"], "climbed the shaft: it is open now")
+check(any("shaft from floor 4" in line for _, line in world.report), "the report tells of the shaft")
 world.report = None
 camp.show("down")
 ways = [r for r in camp.rows(world) if r.label.startswith("Floor")]
 check(len(ways) == 2 and ways[0].first, "the way down offers the stairs (first) and the shaft")
 ways[1].action(world)
-check(world.floor.name == "floor3" and p.cell == (7, 1) and world.arrived_on == (7, 1), "down the shaft to floor 3")
+check(world.floor.name == "floor4" and p.cell == (7, 1) and world.arrived_on == (7, 1), "down the shaft to floor 4")
 tick(40)
 check(not world.surface, "standing on the rope does not pull you straight back up")
 
@@ -154,7 +154,7 @@ check(data["version"] == save.VERSION, "the save has a version")
 other = World(atlas, W, H, NullSfx(), start="camp")
 save.restore(other, data)
 check(other.surface and other.coins == 77 and other.quests == world.quests, "coins and requests come back")
-check(other.shortcuts == ["floor3"] and other.relic_log == world.relic_log, "the shaft and the relics' fates come back")
+check(other.shortcuts == ["floor4"] and other.relic_log == world.relic_log, "the shaft and the relics' fates come back")
 check(other.journal == world.journal, "the journal comes back")
 check(other.floors["floor1"].doors[(3, 6)].target_open, "an opened door stays open")
 check(sorted(it.kind for it in other.floors["floor1"].items if it.thing.lost) == ["rock"], "the rock still lies where it fell")

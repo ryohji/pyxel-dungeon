@@ -100,9 +100,14 @@ def owned(world, kind):
     return kind in world.armory or carried(world, kind) > 0
 
 
+def once(recipe):
+    """A weapon is made once (it goes to the rack); supplies for the packs can be made again and again."""
+    return recipe["to"] == "rack"
+
+
 def wanted(world, material):
     """Whether the smith still has something to make from this material."""
-    return any(r["material"] == material and not owned(world, r["kind"]) for r in RECIPES)
+    return any(r["material"] == material and not (once(r) and owned(world, r["kind"])) for r in RECIPES)
 
 
 def store_materials(world):
@@ -133,14 +138,21 @@ def forge(world, recipe):
         world.messages.add(tr("Not enough to make it."))
         world.sfx.play("fizzle")
         return False
+    thing = Thing(kind)
+    if not once(recipe) and not any(m.give(thing) for m in world.party.members if m.up):
+        world.messages.add(tr("No room in the packs."))
+        return False
     from_store = min(need, world.store.get(material, 0))
     world.store[material] = world.store.get(material, 0) - from_store
     for _ in range(need - from_store):
         locate(world, material)[1]()
     world.coins -= price
-    world.armory.append(kind)
     world.sfx.play("coins")
-    world.messages.add(tr("The smith made {name}. It is on the weapon rack.", name=loc(ITEMS[kind], "name")))
+    if once(recipe):
+        world.armory.append(kind)
+        world.messages.add(tr("The smith made {name}. It is on the weapon rack.", name=loc(ITEMS[kind], "name")))
+    else:
+        world.messages.add(tr("The smith made {name}. It is in a pack.", name=loc(ITEMS[kind], "name")))
     return True
 
 
@@ -224,7 +236,8 @@ class CampScreen:
                 out.append(Row(tr("(no requests left)"), "", None, enabled=False))
             out.append(Row(tr("GO DOWN"), "", None, heading=True))
             ways = [("floor1", tr("Floor 1: the cellar stairs"))]
-            ways += [(name, tr("Floor {n}: the old shaft", n=name[5:])) for name in world.shortcuts]
+            ways += [(name, tr("Floor {n}: the gravekeeper's gate", n=name[5:]) if world.get_floor(name).d.gate
+                      else tr("Floor {n}: the old shaft", n=name[5:])) for name in sorted(world.shortcuts)]
             for name, label in ways:
                 out.append(Row(label, "", lambda w, name=name: self.go_down(w, name),
                                tr("What was asked for is handed over by itself when you come back."), first=name == "floor1"))
@@ -237,14 +250,15 @@ class CampScreen:
         elif self.kind == "smith":
             out.append(Row(tr("THE SMITH MAKES"), "", None, heading=True))
             for r in RECIPES:
-                if owned(world, r["kind"]):
+                if once(r) and owned(world, r["kind"]):
                     continue  # made already: no need for another
                 have = count(world, r["material"])
                 ok = have >= r["count"] and world.coins >= r["coins"]
                 need = tr("{material} x{n} ({have} at hand) and {coins} coins", material=loc(ITEMS[r["material"]], "name"),
                           n=r["count"], have=have, coins=r["coins"])
                 out.append(Row(loc(ITEMS[r["kind"]], "name"), tr("{n} coins", n=r["coins"]), lambda w, r=r: forge(w, r),
-                               need + ". " + loc(WEAPONS[r["kind"]], "text"), enabled=ok))
+                               need + ". " + (loc(WEAPONS[r["kind"]], "text") if r["kind"] in WEAPONS else
+                                              tr("It burns far longer than a torch.")), enabled=ok))
             if len(out) == 1:
                 out.append(Row(tr("(nothing more to make for now)"), "", None, enabled=False))
         elif self.kind == "arms":

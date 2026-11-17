@@ -80,7 +80,7 @@ ICON = 16
 ICONS = ("rock", "key_iron", "torch", "bread", "waterskin", "dagger", "sword", "buckler", "cap", "jerkin",
          "ring", "lantern", "note", "remains", "idol",
          "relic_shard", "relic_seal", "relic_tablet", "relic_chronicle", "relic_heart",
-         "spear", "maul", "bone", "drill_book")
+         "spear", "maul", "bone", "drill_book", "corpse_wax", "wax_torch")
 
 
 def make_icons():
@@ -246,6 +246,17 @@ def make_icons():
     img.rect(o + 2, 2, 2, 12, E[1])
     img.line(o + 6, 6, o + 11, 10, S[6])  # crossed blades on the cover
     img.line(o + 11, 6, o + 6, 10, S[6])
+
+    o = at("corpse_wax")
+    img.elli(o + 2, 6, 12, 8, E[6])
+    img.elli(o + 4, 7, 7, 4, E[7])
+    img.pset(o + 9, 9, E[4])
+
+    o = at("wax_torch")  # the flame is drawn on top while it burns
+    img.line(o + 4, 14, o + 10, 6, E[3])
+    img.line(o + 5, 14, o + 11, 6, E[2])
+    img.rect(o + 8, 3, 5, 5, E[6])
+    img.rect(o + 9, 4, 3, 2, E[7])
     return img
 
 
@@ -260,7 +271,7 @@ def draw_icon(icons, thing, x, y):
     """Blit a thing's icon at (x, y), with a flame on a lit torch."""
     u, v = icon_uv(thing.kind)
     pyxel.blt(x, y, icons, u, v, ICON, ICON, BLACK)
-    if thing.kind == "torch" and thing.fuel > 0:
+    if thing.is_torch and thing.fuel > 0 and not thing.out:
         flick = pyxel.frame_count // 4 % 2
         pyxel.rect(x + 9, y + 1 - flick, 4, 3 + flick, FIRE_I[4])
         pyxel.rect(x + 10, y + 2, 2, 2, FIRE_I[5])

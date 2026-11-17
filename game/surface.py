@@ -19,7 +19,7 @@ W, H = 320, 240
 MENU = [  # (action, label, what it is for)
     ("scholar", "Vesk, the scholar", "Talk. Give Vesk a relic and its power comes back to the hill."),
     ("keeper", "The gravekeeper", "Talk. The gravekeeper tends the dead of the hill."),
-    ("smith", "The smith", "Weapons made from what you bring back: bones, and later more."),
+    ("smith", "The smith", "Things made from what you bring back: a maul from bones, wax torches from corpse wax."),
     ("supplies", "Supplies", "Buy torches, bread and water with the coins you earned."),
     ("arms", "The weapon rack", "Choose Arn's weapon: the sword, the spear, or what the smith made."),
     ("pack", "Belongings", "Equip, eat and drink, sort the packs."),

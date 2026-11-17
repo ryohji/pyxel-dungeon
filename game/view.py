@@ -11,6 +11,7 @@ from palette import BLACK, build_band_shadings
 
 BAND = CELL / 2  # distance per light band (one half-step darker each)
 MAX_DARK = 4  # bands of darkness with no torch at all
+LAMP_BAND = 1  # how bright the cells right by a burning sconce are (0 = brightest)
 
 
 def flicker_band(x, flicker):
@@ -73,6 +74,7 @@ class DungeonView:
         self.rnd = random.Random()
         self.cells_drawn = 0
         self.dark = 0  # extra bands of darkness when the torch is low or gone
+        self.lamps = []  # (x, z) of flames on the walls (burning sconces) that light the cells around them
         self.flicker_amount = 1.0
 
     def update(self, eye, yaw, pitch, frame):
@@ -93,6 +95,10 @@ class DungeonView:
         for key, dist in visible.items():
             node = self.nodes[key]
             band = flicker_band(dist / BAND, self.flicker * self.flicker_amount) + self.dark
+            if self.lamps:
+                cx, cz = (key[0] + 0.5) * CELL, (key[1] + 0.5) * CELL
+                near = min(math.hypot(cx - lx, cz - lz) for lx, lz in self.lamps)
+                band = min(band, int(near / BAND) + LAMP_BAND)
             node.shading = self.shadings[max(0, min(last_band, band))]
             node.visible = True
             for extra in self.extras.get(key, ()):

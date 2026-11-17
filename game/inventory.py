@@ -215,6 +215,6 @@ def describe(thing):
         parts.append(tr("food +{n}", n=r["food"]))
     if r["water"]:
         parts.append(tr("{a}/{b} drinks", a=thing.charges, b=r["charges"]))
-    if thing.kind == "torch":
+    if thing.is_torch:
         parts.append(tr("{n} min left", n=thing.fuel // 3600) if thing.fuel > 0 else "")
     return tr(", ").join(p for p in parts if p)

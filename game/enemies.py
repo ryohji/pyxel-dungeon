@@ -1,4 +1,4 @@
-"""Enemies: the skeleton guard's body, animation and behavior."""
+"""Enemies: the skeleton guard, the stone guardian, the moths that put out flames, and the Lord of the Tombs."""
 
 import math
 import random
@@ -8,7 +8,7 @@ from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL
 from objects import cell_of, facing_yaw
-from palette import BLUE_I, EARTH_I, FIRE_I, STONE_I, WHITE
+from palette import BLUE_I, EARTH_I, FIRE_I, MOSS_I, STONE_I, WHITE
 from player import move_circle
 from tables import ENEMIES, TUNE
 
@@ -375,9 +375,255 @@ class GuardianNode(SkeletonNode):
         self.transform = _t(*self.jolted()) * _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0)) * Mat4.from_scale(Vec3(self.SCALE, self.SCALE, self.SCALE))
 
 
+# ---------------------------------------------------------------- moths
+class Moth(Skeleton):
+    """A swarm of grey moths: it never bites, but flies to every flame and smothers it.
+    Burning sconces first, then the party's torch."""
+
+    KIND = "moth"
+    DOUSE_REST = 300  # frames it flutters about after putting out a flame
+
+    def __init__(self, x, z, yaw=0.0):
+        super().__init__(x, z, yaw)
+        self.home = (x, z)
+        self.goal = None  # ('sconce', Sconce) or ('party', None)
+        self.rest = 0
+        self.node = MothNode(self)
+
+    @property
+    def center(self):
+        return Vec3(self.x, 72, self.z)
+
+    def hurt(self, damage, from_x, from_z):
+        if not self.alive:
+            return False
+        self.hp -= damage
+        self.flash = 6
+        if self.hp <= 0:
+            self._set("dying")
+            return True
+        self.rest = max(self.rest, 40)  # scattered for a moment
+        return False
+
+    def _pick_goal(self, floor, world):
+        best, best_d = None, self.SIGHT
+        for sc in floor.lit_sconces():
+            x, z = floor.sconce_point(sc)
+            d = math.hypot(x - self.x, z - self.z)
+            if d < best_d:
+                best, best_d = ("sconce", sc), d
+        p = world.player
+        if world.party.flame > 0 and not world.travel:
+            d = math.hypot(p.x - self.x, p.z - self.z) * 1.5  # a still flame on the wall draws them first
+            if d < best_d:
+                best = ("party", None)
+        return best
+
+    def _goal_point(self, floor, world):
+        kind, sc = self.goal
+        if kind == "party":
+            return world.player.x, world.player.z
+        return floor.sconce_point(sc)
+
+    def update(self, floor, world):
+        self.t += 1
+        self.flash = max(0, self.flash - 1)
+        if self.state == "dead":
+            return
+        if self.state == "dying":
+            if self.t >= 30:
+                self._set("dead")
+            self.node.refresh()
+            return
+        self.walk_phase += 0.5
+        if self.stun > 0:
+            self.stun -= 1
+            self.node.refresh()
+            return
+        if self.rest > 0:
+            self.rest -= 1
+            hx, hz = self.home
+            a = self.t * 0.05
+            self._fly_to(floor, hx + math.cos(a) * 40, hz + math.sin(a) * 40, self.WALK)
+            self.node.refresh()
+            return
+        if self.goal is None or self.t % 30 == 0:
+            self.goal = self._pick_goal(floor, world)
+            if self.goal is not None and self.state == "idle":
+                self._set("chase")
+        if self.goal is None:
+            self.node.refresh()
+            return
+        kind, sc = self.goal
+        if (kind == "sconce" and not sc.lit) or (kind == "party" and world.party.flame <= 0):
+            self.goal = None
+            return
+        tx, tz = self._goal_point(floor, world)
+        if math.hypot(tx - self.x, tz - self.z) < 45:
+            if kind == "sconce":
+                sc.lit = False
+                floor.emit("fizzle", (tx, tz), 0.8)
+                if math.hypot(tx - world.player.x, tz - world.player.z) < 600:
+                    world.messages.add(tr_("Moths swarm over a sconce and smother its flame."))
+            else:
+                world.douse_torches()
+            self.home = (self.x, self.z)
+            self.goal = None
+            self.rest = self.DOUSE_REST
+            return
+        goal_cell = cell_of(tx, tz)
+        if line_of_sight(floor.solid, self.x, self.z, tx, tz):
+            nx, nz = tx, tz
+        else:
+            self.path_timer -= 1
+            if self.path_timer <= 0 or not self.path:
+                self.path = find_path(floor.enemy_solid, self.cell, goal_cell) or []
+                self.path_timer = 20
+            while self.path and self.path[0] == self.cell:
+                self.path.pop(0)
+            if not self.path:
+                nx, nz = tx, tz
+            else:
+                nx, nz = (self.path[0][0] + 0.5) * CELL, (self.path[0][1] + 0.5) * CELL
+        self._fly_to(floor, nx, nz, self.CHASE * (0.45 if self.slow else 1.0))
+        self.node.refresh()
+
+    def _fly_to(self, floor, tx, tz, speed):
+        dx, dz = tx - self.x, tz - self.z
+        d = math.hypot(dx, dz)
+        if d < 1:
+            return
+        step = min(speed, d)
+        self.x, self.z = move_circle(self.x, self.z, dx / d * step, dz / d * step, self.RADIUS, floor.solid)
+        self._turn_toward(tx, tz, 12)
+
+
+def tr_(text):
+    from lang import tr
+    return tr(text)
+
+
+class MothNode(Node):
+    def __init__(self, moth):
+        super().__init__()
+        self.e = moth
+        self.refresh()
+
+    def refresh(self):
+        e = self.e
+        self.transform = _t(e.x, 0, e.z)
+
+    def on_draw(self):
+        e = self.e
+        if e.state == "dead":
+            return
+        n = 9
+        if e.state == "dying":
+            n = max(0, 9 - e.t // 3)
+        col = WHITE if e.flash > 0 else STONE_I[7]
+        self.shaded(False)  # pale wings catch any light
+        for i in range(n):
+            a = e.walk_phase * (0.6 + 0.1 * i) + i * 0.9
+            r = 12 + (i * 7) % 20
+            x, z = math.cos(a) * r, math.sin(a * 1.3) * r
+            y = 72 + math.sin(a * 2.1 + i) * 9 - (e.t * 2 if e.state == "dying" else 0) * 0.5
+            flap = 9 if (pyxel_frame() + i) % 4 < 2 else 3
+            self.box(_t(x, y, z), Vec3(flap * 2, 2, 7), col)
+            self.box(_t(x, y, z), Vec3(3, 3, 5), EARTH_I[3])
+        self.shaded(True)
+
+
+def pyxel_frame():
+    import pyxel
+    return pyxel.frame_count
+
+
+# ---------------------------------------------------------------- the Lord of the Tombs
+class Lord(Skeleton):
+    """The master of the catacombs. Blades only bite as far as the four sconces of its hall burn,
+    and it goes to put them out."""
+
+    KIND = "lord"
+    DOUSE_EVERY = 540  # frames between its walks to a burning sconce
+
+    def __init__(self, x, z, yaw=0.0):
+        super().__init__(x, z, yaw)
+        self.node = LordNode(self)
+        self.sconces = []  # the hall's sconces, set by the floor
+        self.floor = None
+        self.douse_timer = self.DOUSE_EVERY
+        self.target = None
+
+    @property
+    def center(self):
+        return Vec3(self.x, 70, self.z)
+
+    def lit(self):
+        return sum(sc.lit for sc in self.sconces)
+
+    def guard(self, amount):
+        """How much of a blow gets through: a quarter for every burning sconce of the hall."""
+        return round(amount * self.lit() / max(1, len(self.sconces)))
+
+    def update(self, floor, world):
+        if self.state in ("chase", "idle") and self.alive and not self.stun:
+            self.douse_timer -= 1
+            burning = [sc for sc in self.sconces if sc.lit]
+            if self.target is None and self.douse_timer <= 0 and burning and self.state == "chase":
+                self.target = min(burning, key=lambda sc: math.dist(floor.sconce_point(sc), (self.x, self.z)))
+            if self.target is not None:
+                self.t += 1
+                self.flash = max(0, self.flash - 1)
+                tx, tz = floor.sconce_point(self.target)
+                if not self.target.lit:
+                    self.target, self.douse_timer = None, self.DOUSE_EVERY
+                elif math.hypot(tx - self.x, tz - self.z) < 60:
+                    self.target.lit = False
+                    floor.emit("fizzle", (tx, tz))
+                    world.messages.add(tr_("The Lord of the Tombs puts out a sconce of its hall."))
+                    self.target, self.douse_timer = None, self.DOUSE_EVERY
+                else:
+                    self._turn_toward(tx, tz, 6)
+                    dx, dz = tx - self.x, tz - self.z
+                    d = math.hypot(dx, dz)
+                    self.x, self.z = move_circle(self.x, self.z, dx / d * self.CHASE, dz / d * self.CHASE,
+                                                 self.RADIUS, floor.enemy_solid)
+                    self.walk_phase += self.CHASE * 0.075
+                    self.walk_amount += (1 - self.walk_amount) * 0.15
+                self.node.refresh()
+                return
+        super().update(floor, world)
+
+
+class LordNode(SkeletonNode):
+    BONE = STONE_I[6]
+    BONE_DARK = STONE_I[4]
+    BLADE = STONE_I[7]
+    HILT = FIRE_I[2]
+    EYES = MOSS_I[2]
+    SCALE = 1.6
+
+    def refresh(self):
+        e = self.e
+        s = self.SCALE
+        self.transform = (_t(*self.jolted()) * _t(e.x, 0, e.z) * Mat4.from_euler(Vec3(0, e.yaw, 0))
+                          * Mat4.from_scale(Vec3(s, s, s)))
+
+    def on_draw(self):
+        e = self.e
+        ghost = e.alive and e.lit() == 0  # with its hall dark, it is a shade the blade cannot touch
+        self.BONE, self.BONE_DARK = (BLUE_I[2], BLUE_I[1]) if ghost else (STONE_I[6], STONE_I[4])
+        super().on_draw()
+        if e.state in ("dying", "dead"):
+            return
+        torso = _t(0, 40, 0)
+        for x in (-6, 0, 6):  # a crown of iron spikes
+            self.box(torso * _t(x, 44, 0), Vec3(2.5, 7, 2.5), FIRE_I[2])
+
+
 def apply_tables():
     """Set each enemy kind's numbers from data/enemies.csv (again after a reload)."""
-    for cls in (Skeleton, Guardian):
+    for cls in (Skeleton, Guardian, Moth, Lord):
         r = ENEMIES[cls.KIND]
         cls.NAME = r["name"]
         cls.MAX_HP = r["max_hp"]

@@ -47,3 +47,7 @@ tech_cooldown,70,frames before Arn can act again after a heavy blow
 quake_radius,170,reach of the maul's heavy blow around Arn
 bone_drop,0.5,chance that a skeleton leaves a bone when it falls apart
 bone_coins,2,coins the gravekeeper pays for each bone laid to rest (once the smith needs no more)
+coffin_reach,3.5,cells: a coffin this near opens when the party has no light
+sconce_reach,3.2,cells: a coffin this near a burning sconce stays shut; the party this near one counts as lit
+library_warn_sec,12,seconds a torch can burn in the library before the pages start to crackle
+library_burn_sec,20,seconds until a shelf catches fire

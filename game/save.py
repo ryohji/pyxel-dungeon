@@ -20,6 +20,7 @@ from tables import HABIT_TOP, REQUESTS, note_kind
 from things import Thing
 
 VERSION = 1
+LAYOUT = 2  # the maps' order: 2 put the catacombs on floor 3 and moved the King's hall to floor 4
 MEMBER_KEYS = ("stats", "hp", "stamina", "mana", "level", "xp", "food", "water")
 
 
@@ -33,7 +34,7 @@ def path():
 
 # ---------------------------------------------------------------- things
 def thing_out(t):
-    return None if t is None else {"kind": t.kind, "charges": t.charges, "fuel": t.fuel, "lost": t.lost}
+    return None if t is None else {"kind": t.kind, "charges": t.charges, "fuel": t.fuel, "lost": t.lost, "out": t.out}
 
 
 def thing_in(d):
@@ -41,6 +42,7 @@ def thing_in(d):
         return None
     t = Thing(d["kind"], d["charges"], d["fuel"])
     t.lost = d.get("lost", False)
+    t.out = d.get("out", False)
     return t
 
 
@@ -67,11 +69,14 @@ def dump(world):
             "items": [dict(thing_out(it.thing), x=it.x, z=it.z, yaw=it.yaw) for it in fl.items if not it.moving],
             "doors": {cell_key(c): [door.target_open, door.lock] for c, door in fl.doors.items()},
             "switches": {cell_key(c): sw.on for c, sw in fl.switches.items()},
+            "sconces": sorted(cell_key(fx.cell) for fx in fl.fixtures.values() if fx.kind == "sconce" and fx.lit),
+            "burnt": sorted(cell_key(fx.cell) for fx in fl.fixtures.values() if fx.kind == "shelf" and fx.burnt),
             "placed": [[kind, x, y] for (x, y), kind in fl.d.items],  # the map's own items, as the map was then
             "broken": sorted(fl.broken | {e.slot for e in fl.enemies if not e.alive and getattr(e, "slot", None) is not None}),
         }
     return {
         "version": VERSION,
+        "layout": LAYOUT,
         "party": party,
         "hand": thing_out(world.hand),
         "back": thing_out(world.back),
@@ -95,6 +100,8 @@ def restore(world, data):
     """Put a saved game into a fresh world (made with start="camp")."""
     if data.get("version") != VERSION:
         raise ValueError(f"save version {data.get('version')} is not {VERSION}")
+    if data.get("layout", 1) < 2:
+        data = moved_floor3(data)
     for m, d in zip(world.party.members, data["party"]):
         for k in MEMBER_KEYS:
             setattr(m, k, d[k])
@@ -134,10 +141,29 @@ def restore(world, data):
             door.node.refresh()
         for k, on in saved["switches"].items():
             fl.switches[cell_of_key(k)].on = on
+        if "sconces" in saved:
+            for fx in fl.fixtures.values():
+                if fx.kind == "sconce":
+                    fx.lit = cell_key(fx.cell) in saved["sconces"]
+        for k in saved.get("burnt", []):
+            fl.fixtures[cell_of_key(k)].burnt = True
     world.floor = world.get_floor("floor1")
     world.player.solid = world.floor.solid
     world.surface = True
     world.delve = dict(log=len(world.relic_log), coins=world.coins, opened=None)
+
+
+def moved_floor3(data):
+    """A save from before the catacombs: what it called floor 3 (the King's hall) is floor 4 now."""
+    def rename(name):
+        return "floor4" if name == "floor3" else name
+    data = dict(data)
+    data["floors"] = {rename(k): v for k, v in data["floors"].items()}
+    data["explored"] = {rename(k): v for k, v in data["explored"].items()}
+    data["shortcuts"] = [rename(n) for n in data["shortcuts"]]
+    data["relic_log"] = [[k, how, rename(where)] for k, how, where in data["relic_log"]]
+    data["journal"] = [[e[0], rename(e[1]), *e[2:]] if e[0] == "carving" else e for e in data["journal"]]
+    return data
 
 
 def new_on_map(fl, placed, data):

@@ -8,6 +8,7 @@ Map characters
   #  stone wall            M  mossy wall          S  wall with a switch
   F  wall with a fountain
   K  wall with a carving (its words set by @text)          N  wall with a seal niche
+  L  wall with a sconce    C  wall with a coffin  B  wall with a bookshelf (its words set by @text)
   .  floor                 D  door                _  pressure plate
   O  pit                   X  stairs down         U  stairs up
   H  an old shaft with a rope, straight up to the camp (a shortcut once climbed)
@@ -26,6 +27,10 @@ mechanisms (coordinates are gx,gy):
   @text X,Y WORDS...              what the carving at X,Y says
   @text_ja X,Y WORDS...           the same in Japanese
   @guardian X,Y [YAW]             a stone guardian that wakes when a relic is restored
+  @sconce X,Y lit                 the sconce at X,Y starts out burning
+  @library X0,Y0 X1,Y1            a room of old books: a torch kept there too long sets them alight
+  @boss X,Y KIND [YAW]            the floor's master, who does not rise again once destroyed
+  @gate X,Y [YAW]                 where the gravekeeper's gate from the camp comes out
 """
 
 from pyxel.cube import Primitive
@@ -37,7 +42,7 @@ WALL_H = 100.0
 SUBDIV = 4  # faces are split SUBDIV x SUBDIV to hide affine texture warping
 
 WALL_TILES = {"#": "wall", "M": "wall_moss", "S": "wall", "F": "wall",
-              "K": "wall", "N": "wall", " ": "wall"}
+              "K": "wall", "N": "wall", "L": "wall", "C": "wall", "B": "wall", " ": "wall"}
 FLOOR_CHARS = set(".D_OXUH")
 START_YAW = {"^": 0.0, ">": 90.0, "v": 180.0, "<": 270.0}
 SIDES = ((1, 0), (-1, 0), (0, 1), (0, -1))
@@ -60,6 +65,10 @@ class Dungeon:
         self.texts = {}  # carving cell -> words
         self.texts_ja = {}  # carving cell -> the words in Japanese
         self.guardians = []  # (cell, yaw) in the order they wake
+        self.sconces_lit = set()  # sconces burning when the floor is first entered
+        self.library = None  # (x0, y0, x1, y1)
+        self.boss = None  # (cell, kind, yaw)
+        self.gate = None  # (cell, yaw)
         rows = []
         for ln in text.splitlines():
             if ln.startswith(";"):
@@ -102,6 +111,16 @@ class Dungeon:
             self.texts[_xy(args[0])] = " ".join(args[1:])
         elif cmd == "text_ja":
             self.texts_ja[_xy(args[0])] = " ".join(args[1:])
+        elif cmd == "sconce":
+            if "lit" in args[1:]:
+                self.sconces_lit.add(_xy(args[0]))
+        elif cmd == "library":
+            (x0, y0), (x1, y1) = _xy(args[0]), _xy(args[1])
+            self.library = (x0, y0, x1, y1)
+        elif cmd == "boss":
+            self.boss = (_xy(args[0]), args[1], float(args[2]) if len(args) > 2 else 0.0)
+        elif cmd == "gate":
+            self.gate = (_xy(args[0]), float(args[1]) if len(args) > 1 else 0.0)
         elif cmd == "guardian":
             self.guardians.append((_xy(args[0]), float(args[1]) if len(args) > 1 else 0.0))
         else:
@@ -119,6 +138,12 @@ class Dungeon:
 
     def is_wall(self, gx, gy):
         return self.char(gx, gy) in WALL_TILES
+
+    def in_library(self, gx, gy):
+        if self.library is None:
+            return False
+        x0, y0, x1, y1 = self.library
+        return x0 <= gx <= x1 and y0 <= gy <= y1
 
     def cells_of(self, chars):
         for gy in range(self.h):

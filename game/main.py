@@ -494,7 +494,13 @@ class App:
             pyxel.rect(ox + gx * s, oy + gy * s, s, s, col)
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                 if d.is_wall(gx + dx, gy + dy):
-                    pyxel.rect(ox + (gx + dx) * s, oy + (gy + dy) * s, s, s, STONE_I[6])
+                    wall = STONE_I[6]
+                    fx = w.floor.fixtures.get((gx + dx, gy + dy))
+                    if fx is not None and fx.kind == "sconce":
+                        wall = FIRE_I[4] if fx.lit else STONE_I[2]
+                    elif fx is not None and fx.kind == "coffin":
+                        wall = BLACK if fx.open else EARTH_I[3]
+                    pyxel.rect(ox + (gx + dx) * s, oy + (gy + dy) * s, s, s, wall)
         for e in w.floor.enemies:  # stone guardians are felt through the rock, seen or not
             if e.alive and isinstance(e, Guardian):
                 gx, gy = e.cell

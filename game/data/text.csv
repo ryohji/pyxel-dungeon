@@ -209,3 +209,31 @@ The weapon rack,武器棚
 Into the camp store: {name} x{n}.,野営地の蔵に入れた: {name} ×{n}
 The gravekeeper laid {n} bones to rest: +{pay} coins.,墓守が骨{n}本を弔った。弔い代 +{pay}枚
 (nothing more to make for now),（いま作れる物はもうない）
+"Things made from what you bring back: a maul from bones, wax torches from corpse wax.",持ち帰った物から作る。骨から槌、屍蝋から蝋の松明。
+{name} (out),{name}（消えている）
+Moths swarm over a sconce and smother its flame.,蛾の群れが燭台に群がり、火を消した。
+Moths swarm over the torch and smother it! Light it again at a burning sconce.,蛾の群れが松明に群がり、火を消した！燃えている燭台で点け直そう。
+The Lord of the Tombs puts out a sconce of its hall.,墓所の主が広間の燭台を消した。
+You light the torch again from the sconce.,燭台から松明に火を移した。
+The sconce burns. The dead near it sleep.,燭台が燃えている。そばの死者は眠っている。
+You light the sconce.,燭台に火を入れた。
+No flame to light it with.,火を点ける物がない。
+"In the dark, a coffin lid grinds open!",暗闇の中、棺の蓋がきしみながら開いた！
+The dry pages crackle in the torch's heat.,乾いた頁が松明の熱でぱちぱちと鳴る。
+A shelf catches fire! Its books are lost.,書棚に火が付いた！本は燃えてしまった。
+The blow passes through the Lord like smoke. Light the sconces of its hall!,剣は煙のように墓所の主をすり抜けた。広間の燭台に火を入れよ！
+The Lord of the Tombs falls. The catacombs grow quiet.,墓所の主が崩れ落ちた。墓所が静まり返る。
+An empty coffin.,空の棺。
+A sealed coffin. Something lies still inside.,閉じた棺。中で何かがじっと横たわっている。
+Only ash is left.,灰しか残っていない。
+Too dark to read.,暗くて読めない。
+The gravekeeper gives you the key to the old gate: the camp can send you down to the catacombs.,墓守が古い門の鍵をくれた。野営地から墓所へ直接下りられる。
+AN OLD BOOK,古い本
+It burns far longer than a torch.,松明よりずっと長く燃える。
+The smith made {name}. It is in a pack.,鍛冶屋が{name}を作った。荷物に入れた。
+Floor {n}: the gravekeeper's gate,{n} 階: 墓守の門
+light,火を入れる
+light torch,火を移す
+The fire catches in a sconce.,炎が燭台に燃え移った。
+The fire catches in {n} sconces.,炎が燭台 {n} つに燃え移った。
+The fire ward lights the torch again.,炎の護りで松明に火が戻った。

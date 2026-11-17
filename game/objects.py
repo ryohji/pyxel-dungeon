@@ -6,7 +6,7 @@ import pyxel
 from pyxel.cube import Mat4, Node, Vec3
 
 from dungeon import CELL, SIDES, WALL_H
-from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, RED, STONE_I, WHITE
+from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, RED, STONE_I, WHITE
 from things import Thing
 
 DOOR_SPEED = 1 / 30  # fraction per frame
@@ -243,6 +243,109 @@ class Niche(Fixture):
         return NicheNode(self)
 
 
+class Sconce(Fixture):
+    """An iron sconce in the wall. Burning, it keeps the dead in the coffins near it asleep;
+    light it from a torch, or light a torch from it."""
+
+    KIND = "sconce"
+
+    def __init__(self, cell, open_sides):
+        self.lit = False
+        super().__init__(cell, open_sides)
+
+    def make_node(self):
+        return SconceNode(self)
+
+
+class Coffin(Fixture):
+    """A coffin in a wall niche of the catacombs. In the dark, its dead climb out."""
+
+    KIND = "coffin"
+
+    def __init__(self, cell, open_sides):
+        self.open = False
+        super().__init__(cell, open_sides)
+
+    def make_node(self):
+        return CoffinNode(self)
+
+
+class Shelf(Fixture):
+    """A shelf of old books in the library. A torch kept near too long sets it alight."""
+
+    KIND = "shelf"
+    text = ""
+    text_ja = ""
+
+    def __init__(self, cell, open_sides):
+        self.burnt = False
+        super().__init__(cell, open_sides)
+
+    def make_node(self):
+        return ShelfNode(self)
+
+
+class SconceNode(Node):
+    def __init__(self, sconce):
+        super().__init__()
+        self.sconce = sconce
+
+    def on_draw(self):
+        b = self.box
+        b(Mat4.from_translation(Vec3(0, 60, 2)), Vec3(12, 28, 4), STONE_I[2])  # the iron plate
+        b(Mat4.from_translation(Vec3(0, 54, 10)), Vec3(5, 4, 16), STONE_I[3])  # the arm
+        b(Mat4.from_translation(Vec3(0, 58, 18)), Vec3(18, 6, 18), STONE_I[3])  # the cup
+        if self.sconce.lit:
+            self.shaded(False)
+            f = pyxel.frame_count // 5 % 3
+            b(Mat4.from_translation(Vec3(0, 70 + f, 18)), Vec3(13, 18 + f * 3, 13), FIRE_I[4])
+            b(Mat4.from_translation(Vec3(0, 67, 18)), Vec3(8, 9, 8), FIRE_I[5])
+            self.shaded(True)
+        else:
+            b(Mat4.from_translation(Vec3(0, 61.5, 18)), Vec3(14, 1, 14), BLACK)  # cold soot
+
+
+class CoffinNode(Node):
+    def __init__(self, coffin):
+        super().__init__()
+        self.coffin = coffin
+
+    def on_draw(self):
+        b = self.box
+        b(Mat4.from_translation(Vec3(0, 30, 1)), Vec3(80, 52, 2), STONE_I[2])  # the niche frame
+        if self.coffin.open:
+            b(Mat4.from_translation(Vec3(0, 30, 2)), Vec3(70, 40, 1), BLACK)  # empty and dark
+            b(Mat4.from_translation(Vec3(-30, 5, 12)) * Mat4.from_euler(Vec3(0, 0, 70)), Vec3(40, 6, 20), EARTH_I[2])
+        else:
+            b(Mat4.from_translation(Vec3(0, 30, 3)), Vec3(70, 40, 4), EARTH_I[2])  # the lid
+            b(Mat4.from_translation(Vec3(0, 30, 5.5)), Vec3(60, 4, 1), EARTH_I[3])
+            b(Mat4.from_translation(Vec3(0, 30, 5.5)), Vec3(4, 30, 1), EARTH_I[3])
+
+
+class ShelfNode(Node):
+    COLORS = (RED, BLUE_I[1], EARTH_I[3], MOSS_I[1], EARTH_I[5], FIRE_I[2])
+
+    def __init__(self, shelf):
+        super().__init__()
+        self.shelf = shelf
+
+    def on_draw(self):
+        b = self.box
+        b(Mat4.from_translation(Vec3(0, 48, 2)), Vec3(84, 90, 4), EARTH_I[2])  # the case
+        for row, y in enumerate((18, 40, 62, 84)):
+            b(Mat4.from_translation(Vec3(0, y - 3, 8)), Vec3(80, 2, 12), EARTH_I[3])
+            if self.shelf.burnt:
+                b(Mat4.from_translation(Vec3(0, y + 2, 8)), Vec3(76, 6, 10), BLACK)  # ash
+                continue
+            x = -36
+            for k in range(12):
+                w = 5 + (row * 7 + k * 3) % 3
+                h = 13 + (row + k * 5) % 5
+                b(Mat4.from_translation(Vec3(x + w / 2, y + h / 2 - 2, 8)), Vec3(w, h, 10),
+                  self.COLORS[(row * 5 + k) % len(self.COLORS)])
+                x += w + 1
+
+
 class CarvingNode(Node):
     def on_draw(self):
         self.box(Mat4.from_translation(Vec3(0, 55, 1)), Vec3(60, 60, 2), STONE_I[2])  # the panel
@@ -368,10 +471,10 @@ class ItemNode(Node):
                 b(_at(dx, 1.5, dz), Vec3(sx, 3, sz), c)
             for dx in (11, 7):
                 b(_at(dx, 1.5, 3), Vec3(2, 3, 5), c)
-        elif kind == "torch":
+        elif kind in ("torch", "wax_torch"):
             b(_at(0, 2, 0), Vec3(30, 4, 4), EARTH_I[2])
-            b(_at(14, 3, 0), Vec3(7, 6, 6), EARTH_I[1])
-            if thing.fuel > 0:
+            b(_at(14, 3, 0), Vec3(7, 6, 6), EARTH_I[1] if kind == "torch" else EARTH_I[6])
+            if thing.fuel > 0 and not thing.out:
                 self.shaded(False)
                 b(_at(19, 5, 0), Vec3(6, 8, 6), FIRE_I[5])
                 self.shaded(True)
@@ -397,6 +500,9 @@ class ItemNode(Node):
             b(_at(0, 2, 0, 25), Vec3(26, 3, 4), STONE_I[7])
             for dx in (-13, 13):
                 b(_at(dx * 0.9, 2.5, dx * 0.42, 25), Vec3(6, 5, 7), STONE_I[7])
+        elif kind == "corpse_wax":
+            b(_at(0, 4, 0, 15), Vec3(14, 8, 11), EARTH_I[6])
+            b(_at(2, 8, 1, 15), Vec3(8, 3, 6), EARTH_I[7])
         elif kind == "drill_book":
             b(_at(0, 2, 0, 10), Vec3(20, 4, 26), FIRE_I[1])
             b(_at(1, 2.2, 0, 10), Vec3(18, 4, 24), EARTH_I[6])

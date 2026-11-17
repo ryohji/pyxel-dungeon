@@ -175,6 +175,14 @@ class Party:
             return 0.0
         return max(1.0 if "light" in self.wards else 0.0, *(m.light for m in self.members if m.up))
 
+    @property
+    def flame(self):
+        """0..1: the brightest burning torch anyone holds. A Light ward is not a flame: it neither
+        sets books alight nor draws moths, and they cannot put it out."""
+        if not self.alive:
+            return 0.0
+        return max(0.0, *(m.light for m in self.members if m.up))
+
     def add_ward(self, element, frames, amount):
         old = self.wards.get(element)
         if old is None or old[0] < frames:
@@ -231,7 +239,7 @@ class Party:
         """Hunger, thirst and torches burning down, once per frame."""
         for m in self.members:
             for t in (m.equip["right"], m.equip["left"]):
-                if t is not None and t.kind == "torch" and t.fuel > 0:
+                if t is not None and t.is_torch and t.fuel > 0 and not t.out:
                     t.fuel -= 1
                     if t.fuel == 0:
                         messages.add(tr("{name}'s torch burns out.", name=m.called))

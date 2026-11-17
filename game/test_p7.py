@@ -67,7 +67,7 @@ old = tables.ENEMIES["skeleton"]
 devtools.reload(world)
 check(tables.ENEMIES["skeleton"] is not old and Skeleton.MAX_HP == tables.ENEMIES["skeleton"]["max_hp"],
       "reload reads the tables again")
-check(devtools.floor_names() == ["camp", "floor1", "floor2", "floor3"], "the floors in order")
+check(devtools.floor_names() == ["camp", "floor1", "floor2", "floor3", "floor4"], "the floors in order")
 
 # 5. Japanese
 from lang import TEXT, loc, tr

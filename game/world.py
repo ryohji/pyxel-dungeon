@@ -8,9 +8,9 @@ import pyxel
 from pyxel.cube import Vec3
 
 from dungeon import CELL, SIDES, WALL_H, Dungeon
-from enemies import Guardian, Skeleton, line_of_sight
-from objects import (DOOR_LIFT, ITEM_RADIUS, Carving, Door, Fountain, Item, Niche, Plate, RopeNode, StairsNode, Switch,
-                     cell_center, cell_of, open_sides)
+from enemies import Guardian, Lord, Moth, Skeleton, line_of_sight
+from objects import (DOOR_LIFT, ITEM_RADIUS, Carving, Coffin, Door, Fountain, Item, Niche, Plate, RopeNode, Sconce, Shelf,
+                     StairsNode, Switch, cell_center, cell_of, facing_yaw, open_sides)
 from camp import deliver, locate, store_materials
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
@@ -30,16 +30,18 @@ THROW_SPEED = 7.5
 FALL_FRAMES = 18  # fade out and in when changing floors
 STAIRS_HOLD = 46  # frames of darkness while walking the stairs (the steps keep walking pace)
 WIPE_FRAMES = 90  # darkness after the party falls, before trying the floor again
-ENEMY_KINDS = {"skeleton": Skeleton, "guardian": Guardian}
+ENEMY_KINDS = {"skeleton": Skeleton, "guardian": Guardian, "moth": Moth, "lord": Lord}
+GATE_FLOOR = "floor3"  # the catacombs, reached by the gravekeeper's gate once his forebear is home
+LORD_SLOT = 99  # the boss's mark in Floor.broken (guardians use their order in the map)
 ENEMY_PICK_RADIUS = 26.0
 TARGET_RANGE = 7 * CELL  # Tab reaches enemies this far away
 ACTIONS = {"item": "take", "switch": "pull", "door": "open / close", "enemy": "attack", "fountain": "drink",
-           "carving": "read", "niche": "look"}
-FIXTURES = {"F": Fountain, "K": Carving, "N": Niche}
-ENTRANCE = "floor1"
+           "carving": "read", "niche": "look", "sconce": "light", "coffin": "look", "shelf": "read"}
+FIXTURES = {"F": Fountain, "K": Carving, "N": Niche, "L": Sconce, "C": Coffin, "B": Shelf}
+ENTRANCE = "floor1"  # the floor the camp's stairs lead down to
 FIST = dict(kind="fist", reach=SWORD_REACH, cooldown=36, stamina=5, stone=1.0, with_load=0.5, load_speed=1.0,
             tech="sweep", tech_mult=1.0)
-STONE_KINDS = {"guardian"}  # enemies a maul breaks twice as hard  # the floor the camp's stairs lead down to
+STONE_KINDS = {"guardian"}  # enemies a maul breaks twice as hard
 SURFACE = "camp"  # where the stairs up from the entrance, and the shafts, come out
 
 
@@ -70,6 +72,9 @@ class Floor:
         for fx in self.fixtures.values():
             if fx.kind == "niche":
                 fx.contents = [kind for kind, where in buried if where == name]
+            if fx.kind == "sconce":
+                fx.lit = fx.cell in d.sconces_lit
+        self.heat = 0  # frames a torch has burned in the library
         self.plates = {c: Plate(c) for c in d.cells_of("_")}
         for src, tgt, mode in d.links:
             source = self.switches.get(src) or self.plates.get(src)
@@ -126,6 +131,17 @@ class Floor:
             self.wake_guardian()
         for _ in buried:
             self.crumble_one(at_once=True)
+        if self.d.boss is not None and LORD_SLOT not in self.broken:
+            cell, kind, yaw = self.d.boss
+            lord = ENEMY_KINDS[kind](*cell_center(cell), yaw)
+            lord.slot = LORD_SLOT
+            lord.floor = self
+            lord.sconces = sorted((fx for fx in self.fixtures.values() if fx.kind == "sconce"
+                                   and math.dist(fx.cell, cell) <= 6), key=lambda fx: fx.cell)
+            self._add_enemy(lord)
+        for fx in self.fixtures.values():
+            if fx.kind == "coffin":  # a new delve: the coffins are shut again
+                fx.open = False
 
     def respawn(self, restored, buried):
         """A new delve: the dead rise again, but a broken guardian stays broken."""
@@ -196,6 +212,24 @@ class Floor:
         field = self.fields.get((gx, gy))
         return (self.solid(gx, gy) or self.d.char(gx, gy) in "OXUH"
                 or (field is not None and field.blocks_enemies))
+
+    def lit_sconces(self):
+        return [fx for fx in self.fixtures.values() if fx.kind == "sconce" and fx.lit]
+
+    def sconce_point(self, sc):
+        """Where a sconce's flame is, on the face of its wall towards the open cell."""
+        x, z = cell_center(sc.cell)
+        _, side = sc.nodes[0]
+        return x + (side[0] - sc.cell[0]) * CELL * 0.4, z + (side[1] - sc.cell[1]) * CELL * 0.4
+
+    def near_flame(self, cell, reach):
+        """Whether a burning sconce is within reach (cells) of this cell."""
+        return any(math.dist(sc.cell, cell) <= reach for sc in self.lit_sconces())
+
+    @property
+    def sealed(self):
+        """The seal laid in this floor's niche: the coffins here sleep for good."""
+        return any(fx.kind == "niche" and "relic_seal" in fx.contents for fx in self.fixtures.values())
 
     def blocks_sight(self, gx, gy):
         door = self.doors.get((gx, gy))
@@ -342,6 +376,7 @@ class World:
         self.rnd = random.Random()
         self.swing = 0  # frames left of the sword-swing overlay
         self.heavy = 0  # frames left of a heavy blow's overlay
+        self.ticks = 0  # frames of play in the dungeon
         self.popups = []  # [world pos, text, age, color]
         self.wipe = None  # frames since the party fell
         self.hurt_flash = 0
@@ -420,15 +455,18 @@ class World:
         self.report = None
         self.floor = self.get_floor(name)
         d = self.floor.d
-        cell = next(d.cells_of("U" if name == ENTRANCE else "H"))
         p = self.player
         p.solid = self.floor.solid
-        p.x, p.z = cell_center(cell)
         p.pitch, p.dip, self.shake = 0.0, 0.0, 0.0
-        for dx, dy in SIDES:  # face the way out of the stairwell
-            if not d.is_wall(cell[0] + dx, cell[1] + dy):
-                p.yaw = math.degrees(math.atan2(dx, -dy)) % 360
-                break
+        if name != ENTRANCE and d.gate is not None:  # the gravekeeper's gate
+            cell, p.yaw = d.gate
+        else:
+            cell = next(d.cells_of("U" if name == ENTRANCE else "H"))
+            for dx, dy in SIDES:  # face the way out of the stairwell
+                if not d.is_wall(cell[0] + dx, cell[1] + dy):
+                    p.yaw = math.degrees(math.atan2(dx, -dy)) % 360
+                    break
+        p.x, p.z = cell_center(cell)
         self.arrived_on = cell
         self.delve = dict(log=len(self.relic_log), coins=self.coins, opened=None)
         self.travel = [FALL_FRAMES + 1, name, "", "arrive"]  # fade in from the dark
@@ -450,6 +488,9 @@ class World:
             if state == "accepted" and deliver(self, rid):
                 req = REQUESTS[rid]
                 report.append(("good", tr("{title}: done. +{reward} coins.", title=loc(req, "title"), reward=req["reward"])))
+                if rid == "ancestor" and GATE_FLOOR not in self.shortcuts:
+                    self.shortcuts.append(GATE_FLOOR)
+                    report.append(("good", tr("The gravekeeper gives you the key to the old gate: the camp can send you down to the catacombs.")))
         for kind, how, where in self.relic_log[self.delve["log"]:]:
             if how == "bury":
                 report.append(("relic", tr("{name}: laid to rest on floor {n}.", name=loc(RELICS[kind], "name"), n=where[5:])))
@@ -553,6 +594,7 @@ class World:
             pitch += self.rnd.uniform(-1, 1) * self.shake * 2.5
         light = self.party.light
         view = self.floor.view
+        view.lamps = [self.floor.sconce_point(sc) for sc in self.floor.lit_sconces()]
         if self.floor.d.lit:
             view.dark = 0
         else:
@@ -566,8 +608,109 @@ class World:
         self.popups = [pop for pop in self.popups if pop[2] < 45]
 
     # ------------------------------------------------------------ combat
+    # ------------------------------------------------------------ the catacombs
+    def in_light(self):
+        """The party has a flame: a torch burning, or a burning sconce close by."""
+        return self.party.light > 0 or self.floor.near_flame(self.player.cell, TUNE["sconce_reach"] * 0.8)
+
+    def douse_torches(self):
+        """Moths smother every torch the party holds."""
+        out = False
+        for m in self.party.members:
+            for slot in ("right", "left"):
+                t = m.equip[slot]
+                if t is not None and t.is_torch and t.fuel > 0 and not t.out:
+                    t.out = out = True
+        if out:
+            self.sfx.play("fizzle")
+            self.messages.add(tr("Moths swarm over the torch and smother it! Light it again at a burning sconce."))
+
+    def _use_sconce(self, sc):
+        torches = [t for m in self.party.members for t in (m.equip["right"], m.equip["left"])
+                   if t is not None and t.is_torch and t.fuel > 0]
+        if sc.lit:
+            dark = [t for t in torches if t.out]
+            for t in dark:
+                t.out = False
+            if dark:
+                self.sfx.play("cast")
+                self.messages.add(tr("You light the torch again from the sconce."))
+            else:
+                self.messages.add(tr("The sconce burns. The dead near it sleep."))
+        elif any(not t.out for t in torches):
+            sc.lit = True
+            self.sfx.play("cast")
+            self.messages.add(tr("You light the sconce."))
+        else:
+            self.messages.add(tr("No flame to light it with."))
+
+    def _burn_shelf(self, shelf):
+        shelf.burnt = True
+        self.floor.emit("burn", cell_center(shelf.cell))
+        self.messages.add(tr("A shelf catches fire! Its books are lost."))
+
+    def ignite(self, cells):
+        """Fire magic reaching these wall cells: cold sconces catch, and dry shelves burn."""
+        lit = 0
+        for cell in cells:
+            fx = self.floor.fixtures.get(cell)
+            if fx is None:
+                continue
+            if fx.kind == "sconce" and not fx.lit:
+                fx.lit = True
+                lit += 1
+            elif fx.kind == "shelf" and not fx.burnt:
+                self._burn_shelf(fx)
+        if lit:
+            self.messages.add(tr("The fire catches in a sconce.") if lit == 1
+                              else tr("The fire catches in {n} sconces.", n=lit))
+        return lit
+
+    def relight_torches(self):
+        """A fire ward lights the party's smothered torches again."""
+        dark = [t for m in self.party.members for t in (m.equip["right"], m.equip["left"])
+                if t is not None and t.is_torch and t.fuel > 0 and t.out]
+        for t in dark:
+            t.out = False
+        if dark:
+            self.messages.add(tr("The fire ward lights the torch again."))
+        return len(dark)
+
+    def _update_catacombs(self):
+        fl = self.floor
+        p = self.player
+        self.ticks += 1
+        if self.ticks % 10 == 0 and not fl.sealed and not self.in_light():
+            for fx in fl.fixtures.values():
+                if fx.kind != "coffin" or fx.open:
+                    continue
+                if math.dist(fx.cell, p.cell) > TUNE["coffin_reach"] or fl.near_flame(fx.cell, TUNE["sconce_reach"]):
+                    continue
+                fx.open = True
+                side = min((c for _, c in fx.nodes), key=lambda c: math.dist(c, p.cell))
+                risen = Skeleton(*cell_center(side), facing_yaw(p.x - cell_center(side)[0], p.z - cell_center(side)[1]))
+                risen.risen = True
+                fl._add_enemy(risen)
+                risen._set("chase")
+                risen.last_seen = (p.x, p.z)
+                fl.emit("collapse", cell_center(side))
+                self.messages.add(tr("In the dark, a coffin lid grinds open!"))
+                break
+        if fl.d.in_library(*p.cell) and self.party.flame > 0:
+            fl.heat += 1
+            if fl.heat == TUNE["library_warn_sec"] * 60:
+                self.messages.add(tr("The dry pages crackle in the torch's heat."))
+            if fl.heat >= TUNE["library_burn_sec"] * 60:
+                shelves = [fx for fx in fl.fixtures.values() if fx.kind == "shelf" and not fx.burnt]
+                if shelves:
+                    self._burn_shelf(min(shelves, key=lambda fx: math.dist(fx.cell, p.cell)))
+                fl.heat = TUNE["library_warn_sec"] * 60
+        else:
+            fl.heat = max(0, fl.heat - 2)
+
     def _update_combat(self):
         fl = self.floor
+        self._update_catacombs()
         for e in fl.enemies:
             e.update(fl, self)
             fl.view.move(e.node, e.cell)
@@ -580,6 +723,8 @@ class World:
             fl.view.detach(bolt.node)
             fl.emit("bolt_hit", (bolt.pos.x, bolt.pos.z))
             if hit == "wall":
+                if bolt.element == "fire":
+                    self.ignite([bolt.cell])
                 continue
             fx, fz = bolt.pos.x - bolt.vel.x, bolt.pos.z - bolt.vel.z
             if bolt.element is None:
@@ -718,6 +863,13 @@ class World:
                 self._hit(e, round(self._blow() * mult))
 
     def _damage_enemy(self, enemy, amount, from_x, from_z, by=None, skill=None):
+        guard = getattr(enemy, "guard", None)
+        if guard is not None:  # the Lord of the Tombs: only as hurt as its hall is lit
+            amount = guard(amount)
+            if amount <= 0:
+                self.sfx.play("fizzle")
+                self.messages.add(tr("The blow passes through the Lord like smoke. Light the sconces of its hall!"))
+                return
         killed = enemy.hurt(amount, from_x, from_z)
         stop = min(TUNE["hitstop_max"], TUNE["hitstop_base"] + amount * TUNE["hitstop_per_damage"])
         if killed:
@@ -731,6 +883,8 @@ class World:
         self._popup(enemy.center + Vec3(0, 25, 0), str(amount), 1)
         if killed:
             self.messages.add(tr("The {name} falls apart.", name=enemy.called))
+            if enemy.KIND == "lord":
+                self.messages.add(tr("The Lord of the Tombs falls. The catacombs grow quiet."))
             if enemy.KIND == "skeleton" and self.rnd.random() < TUNE["bone_drop"]:
                 self.floor.add_item(Item(Thing("bone"), enemy.x + self.rnd.uniform(-10, 10), enemy.z + self.rnd.uniform(-10, 10)))
         if by is not None:
@@ -830,6 +984,19 @@ class World:
         self.travel = [0, target, message, how]
         self.sfx.play(how)
 
+    def _landing(self, cell, ch):
+        """Stairs lead to the matching stairs on the next floor (the nearest, if the maps do not line up)."""
+        d = self.floor.d
+        cells = list(d.cells_of(ch))
+        if not cells or cell in cells:
+            return cell
+        cell = min(cells, key=lambda c: math.dist(c, cell))
+        for dx, dy in SIDES:  # face the way out of the stairwell
+            if not d.is_wall(cell[0] + dx, cell[1] + dy):
+                self.player.yaw = math.degrees(math.atan2(dx, -dy)) % 360
+                break
+        return cell
+
     def _travel_hold(self):
         return 0 if self.travel[3] in ("fall", "arrive") else STAIRS_HOLD
 
@@ -852,8 +1019,9 @@ class World:
                 self.shake = 1.0
                 p.dip = 30.0  # knocked to the ground, then getting up
             else:
-                p.x, p.z = cx, cz
-                self.arrived_on = p.cell
+                cell = self._landing(p.cell, "U" if how == "stairs_down" else "X")
+                p.x, p.z = cell_center(cell)
+                self.arrived_on = cell
             self.messages.add(tr(message))
             self._warn_guardians()
         elif frame >= FALL_FRAMES * 2 + self._travel_hold():
@@ -884,7 +1052,7 @@ class World:
                 self._take(hit.obj)
             elif hit.kind == "floor" and near and self.back is not None:
                 self._set_down(hit.point)
-            elif hit.kind in ("carving", "niche") and near:
+            elif hit.kind in ("carving", "niche", "sconce", "coffin", "shelf") and near:
                 self._use_fixture(hit)
             elif hit.kind == "fountain" and near:
                 for m in self.party.members:
@@ -900,7 +1068,7 @@ class World:
             elif hit.kind == "door" and near:
                 self._use_door(hit.obj)
             return
-        if hit.kind in ("carving", "niche") and near:
+        if hit.kind in ("carving", "niche", "sconce", "coffin", "shelf") and near:
             self._use_fixture(hit)
         elif hit.kind == "fountain" and near and self.hand.kind == "waterskin":
             self.hand.charges = self.hand.row["charges"]
@@ -965,6 +1133,17 @@ class World:
         fx = hit.obj
         if fx.kind == "carving":
             self.read(("carving", self.floor.name, *fx.cell))
+        elif fx.kind == "sconce":
+            self._use_sconce(fx)
+        elif fx.kind == "coffin":
+            self.messages.add(tr("An empty coffin.") if fx.open else tr("A sealed coffin. Something lies still inside."))
+        elif fx.kind == "shelf":
+            if fx.burnt:
+                self.messages.add(tr("Only ash is left."))
+            elif not self.in_light():
+                self.messages.add(tr("Too dark to read."))
+            else:
+                self.read(("book", self.floor.name, *fx.cell))
         elif fx.kind == "niche":
             relic = self.hand if self.hand is not None and self.hand.kind in RELICS else None
             if relic is None and self.back is not None and self.back.kind in RELICS:
@@ -1062,6 +1241,9 @@ class World:
                 return "lift"
             if hit.kind == "niche" and self.back is not None and self.back.kind in RELICS:
                 return "lay to rest"
+            if hit.kind == "sconce" and hit.obj.lit:
+                return "light torch" if any(t is not None and t.is_torch and t.out for m in self.party.members
+                                            for t in (m.equip["right"], m.equip["left"])) else "look"
             return ACTIONS.get(hit.kind)
         if hit.kind == "floor":
             return "put down"
@@ -1069,7 +1251,7 @@ class World:
             return "use key"
         if hit.kind == "fountain" and self.hand.kind == "waterskin":
             return "fill"
-        if hit.kind == "carving":
+        if hit.kind in ("carving", "sconce", "coffin", "shelf"):
             return ACTIONS[hit.kind]
         if hit.kind == "niche":
             return "lay to rest" if self.hand.kind in RELICS else "look"

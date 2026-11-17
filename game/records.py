@@ -4,6 +4,7 @@ An entry is a tuple:
   ("talk", who, line)       what someone at the camp said: line is "intro" or "<relic>:<restore|bury>"
   ("relic", kind)           a relic's lore, read when it was first picked up
   ("carving", floor, x, y)  words cut into a wall
+  ("book", floor, x, y)     a book read on a shelf of the catacombs' library
   ("note", request id)      a note found in the dungeon (a request)
   ("line", key)             another line of data/lines.csv (the sealed niche)
   ("end", how)              the ending
@@ -52,6 +53,8 @@ def page(entry):
         return loc(relic, "name").upper(), loc(relic, "text")
     if cat == "carving":
         return tr("A CARVING"), _carving(*entry[1:])
+    if cat == "book":
+        return tr("AN OLD BOOK"), _carving(*entry[1:])
     if cat == "note":
         req = REQUESTS[entry[1]]
         return loc(req, "title").upper(), loc(req, "text")

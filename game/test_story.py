@@ -55,11 +55,11 @@ def undead(fl):
 
 
 # 1. the maps of the old kingdom load
-f3 = world.get_floor("floor3")
+f3 = world.get_floor("floor4")
 check(any(isinstance(e, Guardian) for e in f3.enemies), "a stone guardian keeps the king's hall")
-check(sum(fx.kind == "niche" for name in ("floor1", "floor2", "floor3")
-          for fx in world.get_floor(name).fixtures.values()) == 3, "one seal niche on each floor")
-check(len(RELICS) == 5 and sum(it.kind in RELICS for name in ("floor1", "floor2", "floor3")
+check(sum(fx.kind == "niche" for name in ("floor1", "floor2", "floor3", "floor4")
+          for fx in world.get_floor(name).fixtures.values()) == 4, "one seal niche on each floor")
+check(len(RELICS) == 5 and sum(it.kind in RELICS for name in ("floor1", "floor2", "floor3", "floor4")
                                for it in world.get_floor(name).items) == 5, "five relics lie in the dungeon")
 world.floors = {"floor1": world.floor}
 

@@ -61,9 +61,9 @@ SCENES = [
     ("scholar", go("camp", (7, 2), 45), 3),
     ("carving", go("floor1", (1, 3), 270, 5), 3),
     ("niche", go("floor1", (22, 2), 90), 3),
-    ("hall", go("floor3", (18, 5), 0, 5), 3),
-    ("guardian", go("floor3", (16, 5), 0, 5), 3),
-    ("west_room", go("floor3", (8, 9), 270), 3),
+    ("hall", go("floor4", (18, 5), 0, 5), 3),
+    ("guardian", go("floor4", (16, 5), 0, 5), 3),
+    ("west_room", go("floor4", (8, 9), 270), 3),
     ("lore", both(go("floor1", (3, 3), 0), lore), 3),
     ("table", both(go("camp", (7, 2), 45), scholar_table), 2),
 ]

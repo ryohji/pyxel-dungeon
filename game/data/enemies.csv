@@ -1,3 +1,5 @@
 kind,name,max_hp,radius,walk,chase,reach,hit_range,windup,strike,recover,damage_min,damage_max,undead,stagger,sight,lost_after_sec,name_ja
 skeleton,skeleton guard,18,20,1.1,1.9,82,98,28,6,30,3,6,1,5,650,5,骨の番兵
 guardian,stone guardian,40,26,1.1,1.35,96,115,38,6,30,6,10,0,9,650,5,石の守護者
+moth,swarm of moths,3,18,1.6,2.6,0,0,1,1,1,0,0,0,1,800,10,蛾の群れ
+lord,Lord of the Tombs,90,30,1.0,1.25,105,125,42,6,34,6,11,1,8,700,8,墓所の主

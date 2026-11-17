@@ -81,7 +81,7 @@ SCENES = [
     ("door_open", both(go("floor1", (20, 7), 0), open_door), 3),
     ("door_open_near", both(go("floor1", (20, 6), 0, 8), open_door), 3),
     ("journal", both(go("floor1", (3, 3), 0), journal), 2),
-    ("map_guardians", both(go("floor3", (18, 13), 0), guardians), 2),
+    ("map_guardians", both(go("floor4", (18, 13), 0), guardians), 2),
 ]
 
 
