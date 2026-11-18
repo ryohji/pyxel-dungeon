@@ -37,6 +37,7 @@ from lang import tr
 from palette import BLACK, BLUE_I, EARTH_I, FIRE_I, MOSS_I, PALETTE, RED, STONE_I, WHITE
 from reading import Journal, Reader
 from runes import RunePanel, draw_glyph
+from slots import SlotScreen
 from sound import Sfx
 from textures import ICON, draw_icon, make_atlas, make_icons
 from world import World
@@ -63,16 +64,9 @@ class App:
         if sys.platform == "emscripten":  # in a browser the input method is out of our hands
             self.world.messages.add(tr("Tip: turn off Japanese/IME input to play."))
         self.help = Help()
-        data = save.read() if self.SAVE and self.START == "camp" else None
-        if data is not None:
-            try:
-                save.restore(self.world, data)
-                self.world.messages.add(tr("Welcome back."))
-            except (KeyError, ValueError, TypeError) as e:  # an old or broken save: start afresh
-                print("save not loaded:", e)
-                self.world = World(make_atlas(), W, H, Sfx(), start=self.START)
-                data = None
-        self.help.open = data is None  # first thing a new player sees
+        self.slot = None  # the save slot played (1..3)
+        self.slots = SlotScreen() if self.SAVE and self.START == "camp" else None
+        self.help.open = self.slots is None
         self.inventory = Inventory(self.icons)
         self.runes = RunePanel(H)
         self.camp = CampScreen()
@@ -94,10 +88,31 @@ class App:
         """Mouse position and whether the left button was just clicked."""
         return pyxel.mouse_x, pyxel.mouse_y, pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT)
 
+    def begin(self, slot, data):
+        """Play the chosen slot: go on with its save, or begin a new game in it."""
+        self.slots = None
+        self.slot = slot
+        if data is not None:
+            try:
+                save.restore(self.world, data)
+                self.world.messages.add(tr("Welcome back."))
+            except (KeyError, ValueError, TypeError) as e:  # an old or broken save: start afresh
+                print("save not loaded:", e)
+                self.world = World(make_atlas(), W, H, Sfx(), start=self.START)
+                data = None
+        self.help.open = data is None  # first thing a new player sees
+        if data is None:
+            self.world.want_save = True  # the slot is taken from the start
+
     def update(self):
         t0 = time.perf_counter()
         if pyxel.frame_count % 30 == 0:
             self.latin.tick()
+        if self.slots is not None:
+            chosen = self.slots.update(pyxel.mouse_x, pyxel.mouse_y, pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT))
+            if chosen is not None:
+                self.begin(*chosen)
+            return
         closing = pyxel.btnp(pyxel.MOUSE_BUTTON_LEFT) or pyxel.btnp(pyxel.KEY_ESCAPE)
         if pyxel.btnp(pyxel.KEY_H) or (self.help.open and closing):
             self.help.open = not self.help.open
@@ -182,10 +197,10 @@ class App:
         self.surface_seen = w.surface and w.report is not None
         if w.want_save:
             w.want_save = False
-            if not self.SAVE:
+            if not self.SAVE or self.slot is None:
                 return
             try:
-                save.write(w)
+                save.write(w, save.path(self.slot))
             except OSError as e:
                 print("could not save:", e)
 
@@ -204,6 +219,9 @@ class App:
         if self.last_frame is not None:
             self.frame_ms = self.frame_ms * 0.95 + (t0 - self.last_frame) * 1000 * 0.05
         self.last_frame = t0
+        if self.slots is not None:
+            self.slots.draw(pyxel.mouse_x, pyxel.mouse_y)
+            return
         w = self.world
         if w.surface:
             self.draw_surface()

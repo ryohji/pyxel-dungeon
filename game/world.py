@@ -11,7 +11,7 @@ from dungeon import CELL, SIDES, WALL_H, Dungeon
 from enemies import Guardian, Lord, Moth, Skeleton, line_of_sight
 from objects import (DOOR_LIFT, ITEM_RADIUS, Carving, Coffin, Door, Fountain, Item, Niche, Plate, RopeNode, Sconce, Shelf,
                      StairsNode, Switch, cell_center, cell_of, facing_yaw, open_sides)
-from camp import deliver, locate, store_materials
+from camp import GATE_FLOOR, deliver, keep_found, locate, store_materials
 from party import SWORD_REACH, Party
 from player import RADIUS as PLAYER_RADIUS
 from player import Player, move_circle
@@ -31,7 +31,6 @@ FALL_FRAMES = 18  # fade out and in when changing floors
 STAIRS_HOLD = 46  # frames of darkness while walking the stairs (the steps keep walking pace)
 WIPE_FRAMES = 90  # darkness after the party falls, before trying the floor again
 ENEMY_KINDS = {"skeleton": Skeleton, "guardian": Guardian, "moth": Moth, "lord": Lord}
-GATE_FLOOR = "floor3"  # the catacombs, reached by the gravekeeper's gate once his forebear is home
 LORD_SLOT = 99  # the boss's mark in Floor.broken (guardians use their order in the map)
 ENEMY_PICK_RADIUS = 26.0
 TARGET_RANGE = 7 * CELL  # Tab reaches enemies this far away
@@ -377,6 +376,7 @@ class World:
         self.swing = 0  # frames left of the sword-swing overlay
         self.heavy = 0  # frames left of a heavy blow's overlay
         self.ticks = 0  # frames of play in the dungeon
+        self.moths_told = False  # the player has been told moths cannot put out a Light ward
         self.popups = []  # [world pos, text, age, color]
         self.wipe = None  # frames since the party fell
         self.hurt_flash = 0
@@ -484,13 +484,9 @@ class World:
             lost = [it.thing.name for it in self.floor.items if it.thing.lost]
             if lost:
                 report.append(("bad", tr("Left where you fell: {things}. M shows the place.", things=tr(", ").join(lost))))
-        for rid, state in list(self.quests.items()):
-            if state == "accepted" and deliver(self, rid):
-                req = REQUESTS[rid]
-                report.append(("good", tr("{title}: done. +{reward} coins.", title=loc(req, "title"), reward=req["reward"])))
-                if rid == "ancestor" and GATE_FLOOR not in self.shortcuts:
-                    self.shortcuts.append(GATE_FLOOR)
-                    report.append(("good", tr("The gravekeeper gives you the key to the old gate: the camp can send you down to the catacombs.")))
+        for rid in list(self.quests):
+            report += deliver(self, rid)
+        report += keep_found(self)
         for kind, how, where in self.relic_log[self.delve["log"]:]:
             if how == "bury":
                 report.append(("relic", tr("{name}: laid to rest on floor {n}.", name=loc(RELICS[kind], "name"), n=where[5:])))

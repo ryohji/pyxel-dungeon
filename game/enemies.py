@@ -413,7 +413,7 @@ class Moth(Skeleton):
             if d < best_d:
                 best, best_d = ("sconce", sc), d
         p = world.player
-        if world.party.flame > 0 and not world.travel:
+        if world.party.light > 0 and not world.travel:
             d = math.hypot(p.x - self.x, p.z - self.z) * 1.5  # a still flame on the wall draws them first
             if d < best_d:
                 best = ("party", None)
@@ -455,10 +455,19 @@ class Moth(Skeleton):
             self.node.refresh()
             return
         kind, sc = self.goal
-        if (kind == "sconce" and not sc.lit) or (kind == "party" and world.party.flame <= 0):
+        if (kind == "sconce" and not sc.lit) or (kind == "party" and world.party.light <= 0):
             self.goal = None
             return
         tx, tz = self._goal_point(floor, world)
+        if kind == "party" and world.party.flame <= 0 and math.hypot(tx - self.x, tz - self.z) < 90:
+            # a Light ward cannot be put out: they flutter round it, as moths do round a lamp
+            if not world.moths_told:
+                world.moths_told = True
+                world.messages.add(tr_("Moths flutter round the magic light. They cannot put it out."))
+            a = self.t * 0.08 + id(self) % 7
+            self._fly_to(floor, tx + math.cos(a) * 55, tz + math.sin(a) * 55, self.CHASE * 0.6)
+            self.node.refresh()
+            return
         if math.hypot(tx - self.x, tz - self.z) < 45:
             if kind == "sconce":
                 sc.lit = False

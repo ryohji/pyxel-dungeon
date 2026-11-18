@@ -12,6 +12,7 @@ Enemies are not kept: the dead rise again on every delve.
 
 import json
 import os
+import time
 
 import pyxel
 
@@ -24,12 +25,48 @@ LAYOUT = 2  # the maps' order: 2 put the catacombs on floor 3 and moved the King
 MEMBER_KEYS = ("stats", "hp", "stamina", "mana", "level", "xp", "food", "water")
 
 
-def path():
+SLOTS = 3
+
+
+def folder():
     try:
-        folder = pyxel.user_data_dir("ryohji", "pyxel-dungeon")
+        return pyxel.user_data_dir("ryohji", "pyxel-dungeon")
     except Exception:  # no user folder (or pyxel not started): keep it beside the game
-        folder = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(folder, "save.json")
+        return os.path.dirname(os.path.abspath(__file__))
+
+
+def path(slot=1, where=None):
+    """The file of a save slot (1..SLOTS)."""
+    return os.path.join(where or folder(), f"save{slot}.json")
+
+
+def migrate(where=None):
+    """A save from before the slots (save.json) becomes slot 1."""
+    where = where or folder()
+    old = os.path.join(where, "save.json")
+    if os.path.exists(old) and not os.path.exists(path(1, where)):
+        try:
+            os.replace(old, path(1, where))
+        except OSError as e:
+            print("could not move the old save:", e)
+
+
+def delete(slot, where=None):
+    try:
+        os.remove(path(slot, where))
+    except OSError:
+        pass
+
+
+def summary(data):
+    """What a slot's save shows on the slot screen: deepest floor, coins, requests done, when saved."""
+    explored = data.get("explored", {})
+    if data.get("layout", 1) < 2 and "floor3" in explored:  # a save from before the catacombs
+        explored = {("floor4" if k == "floor3" else k): v for k, v in explored.items()}
+    floors = [int(name[5:]) for name, cells in explored.items() if cells and name[5:].isdigit()]
+    return dict(floor=max(floors, default=0), coins=data.get("coins", 0),
+                done=sum(state == "done" for state in data.get("quests", {}).values()),
+                relics=len(data.get("relic_log", [])), saved=data.get("saved", ""))
 
 
 # ---------------------------------------------------------------- things
@@ -77,6 +114,7 @@ def dump(world):
     return {
         "version": VERSION,
         "layout": LAYOUT,
+        "saved": time.strftime("%Y-%m-%d %H:%M"),
         "party": party,
         "hand": thing_out(world.hand),
         "back": thing_out(world.back),

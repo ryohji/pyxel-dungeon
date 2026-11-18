@@ -97,22 +97,23 @@ take("idol")
 check(world.back is not None, "lifted it again")
 check("lift" in sfx.played, "the lift sound played")
 
-# 6. back at the camp: what was asked for is handed over by itself; nothing for what was not asked
+# 6. back at the camp: what was asked for is handed over by itself; what was not yet asked for is kept
 before = world.coins
 world.arrive_surface()
 check(world.coins == before + REQUESTS["ring"]["reward"] and world.quests["ring"] == "done", "paid for the ring")
 check(not any(t is not None and t.kind == "ring" for t in arn.pack), "the ring was handed over")
 check("coins" in sfx.played, "coins clinked")
-check(world.back is not None and world.back.kind == "idol", "the idol was not asked for: still carried")
+check(world.back is None and world.store.get("idol") == 1 and world.quests.get("idol") is None,
+      "the idol was not asked for yet: kept at the camp")
 check(world.quests["lantern"] == "accepted", "the lantern is not carried yet")
 world.report = None
 camp.show("down")
 check("The miller's ring" not in [r.label for r in camp.rows(world)], "a done request is gone from the list")
 check(row("* Holt's lantern").action is None, "a note's request cannot be let go")
+coins = world.coins
 row("The stone idol").action(world)
-world.descend()
-world.arrive_surface()
-check(world.back is None and world.quests["idol"] == "done", "the idol was delivered off Arn's back")
+check(world.quests["idol"] == "done" and world.coins == coins + REQUESTS["idol"]["reward"] and world.store["idol"] == 0,
+      "taking the idol's request hands it over at once")
 
 # 7. buying supplies
 camp.show("supplies")

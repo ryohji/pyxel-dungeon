@@ -42,11 +42,17 @@ def locate(world, kind):
     return None
 
 
+GATE_FLOOR = "floor3"  # the catacombs, reached by the gravekeeper's gate once his forebear is home
+
+
 def accept(world, rid):
+    """Take a request. If its item is already at the camp, it is handed over at once."""
     if rid not in world.quests:
         world.quests[rid] = "accepted"
         world.messages.add(tr("Request taken: {title}.", title=loc(REQUESTS[rid], "title")))
         world.sfx.play("pickup")
+        for _, line in deliver(world, rid)[1:]:
+            world.messages.add(line)
 
 
 def drop(world, rid):
@@ -58,17 +64,47 @@ def drop(world, rid):
 
 
 def deliver(world, rid):
-    """Hand over a request's item (on getting back to the camp). Returns True when paid."""
+    """Hand over a request's item, kept at the camp or carried. Returns lines for the report
+    (none when there was nothing to hand over)."""
     req = REQUESTS[rid]
-    found = locate(world, req["item"])
-    if world.quests.get(rid) != "accepted" or found is None:
-        return False
-    found[1]()
+    kind = req["item"]
+    if world.quests.get(rid) != "accepted":
+        return []
+    if world.store.get(kind, 0) > 0:
+        world.store[kind] -= 1
+    elif (found := locate(world, kind)) is not None:
+        found[1]()
+    else:
+        return []
     world.quests[rid] = "done"
     world.coins += req["reward"]
     world.sfx.play("coins")
-    world.messages.add(tr("{title}: done. +{reward} coins.", title=loc(req, "title"), reward=req["reward"]))
-    return True
+    done = tr("{title}: done. +{reward} coins.", title=loc(req, "title"), reward=req["reward"])
+    world.messages.add(done)
+    lines = [("good", done)]
+    if rid == "ancestor" and GATE_FLOOR not in world.shortcuts:
+        world.shortcuts.append(GATE_FLOOR)
+        lines.append(("good", tr("The gravekeeper gives you the key to the old gate: the camp can send you down to the catacombs.")))
+    return lines
+
+
+def keep_found(world):
+    """Back at the camp: things asked for by a request not yet taken are kept at the camp,
+    to be handed over when it is taken. Returns lines for the report."""
+    lines = []
+    for rid, req in REQUESTS.items():
+        if world.quests.get(rid) == "done":
+            continue
+        kind = req["item"]
+        n = 0
+        while (found := locate(world, kind)) is not None:
+            found[1]()
+            n += 1
+        if n:
+            world.store[kind] = world.store.get(kind, 0) + n
+            lines.append(("good", tr("{name} is kept at the camp. Take the request to hand it over.",
+                                     name=loc(ITEMS[kind], "name"))))
+    return lines
 
 
 def restore(world, kind):
@@ -224,6 +260,8 @@ class CampScreen:
                 if state == "done" or (req["source"] != "board" and state is None):
                     continue
                 need = tr("Bring back {name}.", name=loc(ITEMS[req["item"]], "name")) + " " + loc(req, "text")
+                if world.store.get(req["item"], 0) > 0:
+                    need = tr("Already at the camp: taking it hands it over.") + " " + need
                 if state is None:
                     out.append(Row(loc(req, "title"), tr("{n} coins", n=req["reward"]),
                                    lambda w, rid=rid: accept(w, rid), tr("Space/click: take it.") + " " + need))

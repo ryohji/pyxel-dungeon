@@ -165,7 +165,16 @@ check(sum(fx.burnt for fx in fl.fixtures.values() if fx.kind == "shelf") == burn
       "but it is no flame: the books do not burn")
 check(party.light > 0 and party.flame == 0, "the party has light, but no flame")
 moth = Moth(*cell_center((18, 2)))
-check(moth._pick_goal(fl, world) is None or moth._pick_goal(fl, world)[0] != "party", "moths are not drawn to a Light ward")
+fl._add_enemy(moth)
+moth._set("chase")
+party.mage.cooldown = 10 ** 6
+for _ in range(300):
+    tick()
+check(moth.goal is not None and moth.goal[0] == "party" and math.hypot(moth.x - p.x, moth.z - p.z) < 120,
+      "moths are drawn to a Light ward too, and flutter round it")
+check(party.light > 0 and said("cannot put it out"), "but they cannot put it out")
+fl.enemies.remove(moth)
+party.mage.cooldown = 0
 party.wards.pop("light")
 for t in torches():
     t.out = False
@@ -234,6 +243,23 @@ gate = next(r for r in camp.rows(world) if "gate" in r.label)
 gate.action(world)
 check(world.floor.name == "floor3" and p.cell == world.floor.d.gate[0], "down through the gate into the catacombs")
 tick(40)
+
+# 8b. a request's item brought back before the request is taken: kept at the camp, handed over on taking it
+world.party.fighter.give(Thing("ring"))
+world.arrive_surface()
+check(world.store.get("ring") == 1 and world.quests.get("ring") is None, "the ring brought back early is kept at the camp")
+check(any("kept at the camp" in line for _, line in world.report), "the report says so")
+world.report = None
+world.descend()
+tick(40)
+check(not any(t is not None and t.kind == "ring" for m in party.members for t in m.pack), "it does not come back down with the party")
+world.arrive_surface()
+world.report = None
+coins = world.coins
+camp.show("down")
+next(r for r in camp.rows(world) if r.label == "The miller's ring").action(world)
+check(world.quests["ring"] == "done" and world.coins == coins + REQUESTS["ring"]["reward"] and world.store["ring"] == 0,
+      "taking the request hands it over at once")
 
 # 9. corpse wax: the smith makes wax torches, again and again
 world.party.fighter.give(Thing("corpse_wax"))

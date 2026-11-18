@@ -237,3 +237,14 @@ light torch,火を移す
 The fire catches in a sconce.,炎が燭台に燃え移った。
 The fire catches in {n} sconces.,炎が燭台 {n} つに燃え移った。
 The fire ward lights the torch again.,炎の護りで松明に火が戻った。
+Moths flutter round the magic light. They cannot put it out.,蛾が魔法の明かりのまわりを飛び回る。この光は消せない。
+{name} is kept at the camp. Take the request to hand it over.,{name}は野営地に置いておく。依頼を受ければ、その場で渡せる。
+Already at the camp: taking it hands it over.,もう野営地にある。受ければその場で渡す。
+Choose a save slot,セーブスロットを選ぶ
+(empty),（空き）
+Begin a new game,新しく始める
+Floor {n} reached,{n} 階まで到達
+Not yet below the camp,まだ潜っていない
+"{coins} coins, {done} requests done, {relics} relics settled",硬貨 {coins}、依頼 {done} 件、遺物 {relics} つ
+"1-3, click or Space: play.  X: delete the slot.  L: language",1-3、クリック、Space で遊ぶ。X でスロットを消す。L で言語
+Delete slot {n}? It cannot be undone.  Y: delete  N: keep,スロット {n} を消す？ 元に戻せない。Y で消す、N でやめる
